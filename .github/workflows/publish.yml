@@ -1,0 +1,28 @@
+name: Publish to Crates.io
+
+on:
+  push:
+    tags:
+      - "v*" # 当推送到 v0.1.0, v1.2.3 等标签时触发
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 安全检查：发布前先跑一遍测试，防止发了坏包
+      # 注意：这里会自动应用我们在 [dev-dependencies] 设置的 extra-traits
+      - name: Run tests
+        run: cargo test
+
+      # 正式发布
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
