@@ -1,6 +1,8 @@
+#![warn(missing_docs)]
+
 //!<div class="doc-cn">
 //!
-#![doc = include_str!("docs/zh_cn.md")]
+// #![doc = include_str!("docs/zh_cn.md")]
 //!
 //!</div>
 //!

@@ -15,7 +15,7 @@ impl Parse for CaptureInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let ident = input.parse()?;
         let _arrow = input.parse()?;
-        let patterns = input.parse()?;
+        let patterns = PatternList::parse(input)?;
         Ok(CaptureInput {
             input: ident,
             _arrow,
@@ -34,7 +34,7 @@ impl ToTokens for CaptureInput {
         };
 
         let (capture_init, struct_def, struct_expr) =
-            generate_output(patterns.capture_list.clone(), None);
+            generate_output(patterns.capture_list.clone(), None, &patterns.parse_context);
 
         tokens.extend(quote! {
             {
@@ -62,7 +62,7 @@ impl Parse for DefineInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let name = input.parse()?;
         let _colon = input.parse()?;
-        let patterns = input.parse()?;
+        let patterns = PatternList::parse(input)?;
         Ok(DefineInput {
             name,
             _colon,
@@ -78,8 +78,11 @@ impl ToTokens for DefineInput {
             #patterns
         };
 
-        let (capture_init, struct_def, struct_expr) =
-            generate_output(patterns.capture_list.clone(), Some(name.clone()));
+        let (capture_init, struct_def, struct_expr) = generate_output(
+            patterns.capture_list.clone(),
+            Some(name.clone()),
+            &patterns.parse_context,
+        );
 
         tokens.extend(quote! {
             #struct_def

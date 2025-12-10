@@ -2,12 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use proc_macro2::{Delimiter, Punct, Spacing, TokenStream};
 use quote::{ToTokens, quote};
-use syn::{
-    Ident, Token, Type, braced, bracketed, ext::IdentExt, parenthesized, parse::Parse, token,
-};
+use syn::{Ident, Token, Type, braced, bracketed, ext::IdentExt, parenthesized, token};
 
 use crate::parser::{
     capture_group::CaptureSpec,
+    context::ParseContext,
     keyword::{Keyword, KeywordMap, parse_keyword},
     output::generate_output,
 };
@@ -19,6 +18,7 @@ pub type IsOptional = bool;
 pub struct PatternList {
     pub list: Vec<Pattern>,
     pub capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>>,
+    pub parse_context: ParseContext,
 }
 
 #[derive(Clone)]
@@ -32,8 +32,9 @@ pub enum Pattern {
     Capture(CaptureSpec, Option<Keyword>),
 }
 
-impl Parse for PatternList {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+impl PatternList {
+    pub fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let mut ctx = ParseContext::default();
         let mut pattern_list = vec![];
 
         while !input.is_empty() {
@@ -46,11 +47,11 @@ impl Parse for PatternList {
                 }
                 let content;
                 let _paren = parenthesized!(content in input);
-                let spec: CaptureSpec = content.parse()?;
+                let spec = CaptureSpec::parse(&content, &mut ctx)?;
                 pattern_list.push(Pattern::Capture(spec, None));
             } else if lookahead.peek(Ident::peek_any) {
                 let id = Ident::parse_any(input)?;
-                let keyword = parse_keyword(id);
+                let keyword = parse_keyword(id, &mut ctx);
                 pattern_list.push(Pattern::Literal(keyword));
             } else if lookahead.peek(token::Brace)
                 || lookahead.peek(token::Bracket)
@@ -70,7 +71,7 @@ impl Parse for PatternList {
                 } else {
                     return Err(syn::Error::new(input.span(), "Unexpected token"));
                 }
-                let inner: PatternList = content.parse()?;
+                let inner: PatternList = PatternList::parse(&content)?;
                 pattern_list.push(Pattern::Group(delimiter, inner));
             } else {
                 let mut collect = String::new();
@@ -83,12 +84,13 @@ impl Parse for PatternList {
                     punct = input.parse()?;
                 }
                 collect.push(punct.as_char());
-                pattern_list.push(Pattern::Literal(parse_keyword(collect)));
+                pattern_list.push(Pattern::Literal(parse_keyword(collect, &mut ctx)));
             }
         }
         Ok(PatternList {
             list: pattern_list,
             capture_list: Arc::new(Mutex::new(vec![])),
+            parse_context: ctx,
         })
     }
 }
@@ -118,7 +120,7 @@ impl ToTokens for PatternList {
                     };
 
                     let pattern_token = quote! {#patterns};
-                    let (capture_init, struct_def, struct_expr) = generate_output(patterns.capture_list.clone(), None);
+                    let (capture_init, struct_def, struct_expr) = generate_output(patterns.capture_list.clone(), None, &self.parse_context);
 
                     // 追加到 body_stream
                     body_stream.extend(quote! {
@@ -126,12 +128,12 @@ impl ToTokens for PatternList {
                             #struct_def
                             let _input;
                             let _ = #mac(_input in input);
-                            let parser = |input: ::syn::parse::ParseBuffer<'_>| -> ::syn::Result<Output> {
+                            let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                                 #capture_init
                                 #pattern_token
                                 ::std::result::Result::Ok(#struct_expr)
                             };
-                            #struct_expr = parser(_input)?;
+                            #struct_expr = parser(&_input)?;
                         }
                     });
 
@@ -143,20 +145,15 @@ impl ToTokens for PatternList {
                 Capture(cap, edge) => {
                     let capture_list = Arc::new(Mutex::new(Vec::new()));
                     cap.add_capture(capture_list.clone());
-                    let (capture_init, struct_def, struct_expr) = generate_output(capture_list, None);
+                    let (capture_init, struct_def, struct_expr) = generate_output(capture_list, None, &self.parse_context);
 
                     match edge {
                         Some(keyword) => {
                             // 3. 你的 Lookahead 逻辑，现在追加到 body_stream
                             body_stream.extend(quote! {
                                 {
-                                    // 这里使用 _input 可能会与 Group 里的 _input 冲突
-                                    // 建议改名为 lookahead_buf 之类的，或者依赖 Rust 的块级作用域遮蔽
                                     let mut _input = ::proc_macro2::TokenStream::new();
 
-                                    // 注意：这里 input.peek 消耗 Token 吗？
-                                    // 如果 input 是 ParseStream，peek 不消耗。
-                                    // 下面的 parse 消耗。逻辑看起来是对的：只要不是 keyword，就吃到 _input 里。
                                     while !input.peek(#keyword) {
                                         _input.extend(::std::iter::once(
                                             input.parse::<::proc_macro2::TokenTree>()?
