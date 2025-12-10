@@ -2,7 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{Ident, Token, parse::Parse};
 
-use crate::parser::{output::generate_output, pattern::PatternList};
+use crate::ast::pattern::PatternList;
+use crate::codegen::output::generate_output;
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct CaptureInput {

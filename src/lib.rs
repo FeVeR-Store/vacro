@@ -12,6 +12,11 @@
 //!
 //!</div>
 
+pub(crate) mod ast;
+pub(crate) mod codegen;
+pub(crate) mod syntax;
+pub(crate) mod transform;
+
 use proc_macro::TokenStream;
 mod impls;
 pub(crate) mod parser;

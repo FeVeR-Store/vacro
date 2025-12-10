@@ -1,43 +1,9 @@
-use std::collections::HashMap;
-
-use proc_macro2::{Punct, TokenStream, TokenTree};
+use proc_macro2::{Punct, TokenStream};
 use quote::{ToTokens, TokenStreamExt, format_ident, quote};
-use syn::Ident;
 
-use crate::parser::context::ParseContext;
-
-#[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub enum Keyword {
-    Rust(String),
-    Custom {
-        punctuation: bool,
-        name: Ident,
-        content: String,
-    },
-}
-
-#[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub struct KeywordMap(HashMap<String, TokenStream>);
-
-impl KeywordMap {
-    pub fn new() -> Self {
-        KeywordMap(HashMap::new())
-    }
-}
-
-impl ToTokens for KeywordMap {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.0.values().for_each(|t| tokens.extend(t.clone()));
-    }
-}
+use crate::ast::keyword::{Keyword, KeywordMap};
 
 impl Keyword {
-    pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
-        let tt: TokenTree = input.parse()?;
-        Ok(parse_keyword(tt, ctx))
-    }
     pub fn get_definition(&self) -> TokenStream {
         match self {
             Keyword::Custom {
@@ -72,6 +38,12 @@ impl Keyword {
             }
             _ => (),
         }
+    }
+}
+
+impl ToTokens for KeywordMap {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.0.values().for_each(|t| tokens.extend(t.clone()));
     }
 }
 
@@ -235,40 +207,6 @@ impl ToTokens for Keyword {
         tokens.extend(t);
     }
 }
-
-pub fn parse_keyword(input: impl ToString, ctx: &mut ParseContext) -> Keyword {
-    match input.to_string().as_str() {
-        keyword @ ("abstract" | "as" | "async" | "auto" | "await" | "become" | "box" | "break"
-        | "const" | "continue" | "crate" | "default" | "do" | "dyn" | "else"
-        | "enum" | "extern" | "final" | "fn" | "for" | "if" | "impl" | "in" | "let"
-        | "loop" | "macro" | "match" | "mod" | "move" | "mut" | "override" | "priv"
-        | "pub" | "raw" | "ref" | "return" | "Self" | "self" | "static" | "struct"
-        | "super" | "trait" | "try" | "type" | "typeof" | "union" | "unsafe"
-        | "unsized" | "use" | "virtual" | "where" | "while" | "yield" | "&" | "&&"
-        | "&=" | "@" | "^" | "^=" | ":" | "," | "$" | "." | ".." | "..." | "..="
-        | "=" | "==" | "=>" | ">=" | ">" | "<-" | "<=" | "<" | "-" | "-=" | "!="
-        | "!" | "|" | "|=" | "||" | "::" | "%" | "%=" | "+" | "+=" | "#" | "?"
-        | "->" | ";" | "<<" | "<<=" | ">>" | ">>=" | "/" | "/=" | "*" | "*=" | "~"
-        | "_") => Keyword::Rust(keyword.to_string()),
-        keyword => {
-            let punctuation = !keyword.chars().next().unwrap().is_alphabetic();
-            let name = if punctuation {
-                let i = ctx.custom_symbol_counter;
-                ctx.custom_symbol_counter += 1;
-                format_ident!("Punt_{}", i)
-            } else {
-                format_ident!("{}", keyword)
-            };
-
-            Keyword::Custom {
-                punctuation,
-                name,
-                content: keyword.to_string(),
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use proc_macro2::Punct;
@@ -276,6 +214,8 @@ mod tests {
         Result, Token,
         parse::{ParseStream, Parser},
     };
+
+    use crate::{parser::context::ParseContext, syntax::keyword};
 
     use super::*;
 
@@ -340,7 +280,7 @@ mod tests {
                     punct = input.parse()?;
                 }
                 collect.push(punct.as_char());
-                Ok(super::parse_keyword(collect, ctx))
+                Ok(keyword::parse_keyword(collect, ctx))
             };
 
             let keyword = parser.parse2(_tokens.clone()).unwrap();

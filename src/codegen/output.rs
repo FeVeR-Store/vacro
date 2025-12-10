@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Ident, Type};
 
-use crate::parser::{context::ParseContext, pattern::IsOptional};
+use crate::{ast::pattern::IsOptional, parser::context::ParseContext};
 
 pub fn generate_output(
     capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>>,
