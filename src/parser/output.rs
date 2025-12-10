@@ -4,14 +4,15 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Ident, Type};
 
-use crate::parser::{capture_group::is_inline, pattern::IsOptional};
+use crate::parser::{context::ParseContext, pattern::IsOptional};
 
 pub fn generate_output(
     capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>>,
     ident: Option<Ident>,
+    ctx: &ParseContext,
 ) -> (TokenStream, TokenStream, TokenStream) {
     let ident = ident.unwrap_or_else(|| format_ident!("Output"));
-    let is_inline = is_inline();
+    let is_inline = ctx.inline_mode && ctx.inline_counter > 0;
     let mut capture_init = TokenStream::new();
     let capture_list = capture_list.lock().unwrap();
     capture_init.extend(capture_list.iter().map(|(id, ty, is_optional)| {

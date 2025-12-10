@@ -26,6 +26,14 @@ To parse this structure, you need to write dozens of lines of boilerplate code t
 
 ```rust
 // Traditional syn parsing logic: scattered logic, error-prone
+# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
+struct MyFn {
+    name: Ident,
+    generics: Option<Punctuated<GenericParam, Token![,]>>,
+    args: Punctuated<FnArg, Token![,]>,
+    ret: Option<Type>
+}
+
 impl Parse for MyFn {
     fn parse(input: ParseStream) -> Result<Self> {
         input.parse::<Token![fn]>()?; // 1. Consume keyword
@@ -41,7 +49,7 @@ impl Parse for MyFn {
         let name: Ident = input.parse()?; // 3. Parse name
         let content;
         parenthesized!(content in input); // 4. Handle parentheses
-        let args: Punctuated<FnArg, Token![,]> = 
+        let args: Punctuated<FnArg, Token![,]> =
             content.parse_terminated(FnArg::parse, Token![,])?;
         // 5. Handle optional return value
         let ret = if input.peek(Token![->]) {
@@ -60,7 +68,8 @@ impl Parse for MyFn {
 With **Vacro**, you only need to describe what the syntax looks like; what you see is what you get.
 
 ```rust
-define!(MyFn: 
+# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
+vacro::define!(MyFn:
     fn                                    // Match literal
     #(?: <#(generic*[,]: GenericParam)>)  // Optional generic param list (angle brackets + comma separated)
     #(name: Ident)                        // Named capture for function name
@@ -72,7 +81,8 @@ define!(MyFn:
 If written in a single line:
 
 ```rust
-define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(args*[,]: FnArg)) #(?: -> #(ret: Type)));
+# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
+vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(args*[,]: FnArg)) #(?: -> #(ret: Type)));
 ```
 
 One line of code covers all complex parsing logic.
@@ -86,21 +96,21 @@ Vacro provides two core macros for **defining structs** and **on-the-fly parsing
 If you need to define a reusable AST node (i.e., define a `struct` and automatically implement `syn::parse::Parse`), use `define!`.
 
 ```rust
-use syn::{Ident, Type, FnArg, GenericParam, Token, parse_macro_input};
-use vacro::define;
-
+# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated, parse_macro_input};
 // Define a struct named MyFn, it automatically implements the Parse trait
-define!(MyFn: 
-    fn 
+vacro::define!(MyFn:
+    fn
     #(?: <#(generic*[,]: GenericParam)>)
-    #(name: Ident) 
-    ( #(args*[,]: FnArg) ) 
+    #(name: Ident)
+    ( #(args*[,]: FnArg) )
     #(?: -> #(ret: Type))
 );
 
-// Usage
-let my_fn: MyFn = parse_macro_input!(input as MyFn);
-println!("Function name: {}", my_fn.name);
+fn parse_my_fn(input: TokenStream) {
+    // Usage
+    let my_fn = parse_macro_input!(input as MyFn);
+    println!("Function name: {}", my_fn.name);
+}
 ```
 
 ### 2\. `capture!`: On-the-fly Stream Parsing
@@ -112,13 +122,16 @@ If you want to quickly consume a segment of a `TokenStream` within existing pars
 If the pattern uses the form `name: Type`, the macro generates a struct named `Output` containing all fields.
 
 ```rust
-let captured = capture!(input -> 
+# use syn::{Ident, Type};
+# fn proc_macro(input: TokenStream) {
+let captured = vacro::capture!(input ->
     fn #(name: Ident) #(?: -> #(ret: Type))
 )?;
-
 // Access fields
 captured.name; // Ident
 captured.ret;  // Option<Type>
+# }
+
 ```
 
 #### Inline Capture
@@ -126,8 +139,9 @@ captured.ret;  // Option<Type>
 If no name is specified in the pattern (or it contains only anonymous captures), the macro will return a tuple or a single value.
 
 ```rust
+# use syn::{Ident, Type};
 // Parse types only, no names needed
-let (ident, ty) = capture!(input -> #(@:Ident): #(@:Type))?;
+let (ident, ty) = vacro::capture!(input -> #(@:Ident): #(@:Type))?;
 
 // Access fields
 ident; // Ident
@@ -138,15 +152,15 @@ ty;    // Type
 
 Vacro's DSL design intuition comes from `macro_rules!` and regular expressions.
 
-| Syntax | Type | Description | Result Type | Example |
-| :--- | :--- | :--- | :--- | :--- |
-| `literal` | Literal | Matches and consumes a Token (Rust keywords/symbols like `fn`, `->` or custom ones like `miku`, `<>`) | `!` | `fn`, `->`, `miku`, `<>` |
-| `#(x: T)` | Named Capture | Captures a specific `syn` type | `T` (e.g. `Ident`, `Type`) | `#(name: Ident)` |
-| `#(x?: T)` | Named Optional | Attempts to parse; skips if failed | `Option<T>` | `#(name?: Ident)` |
-| `#(x*[sep]: T)` | Named Iter | Similar to `Punctuated`, parses by separator | `Punctuated<T, sep>` | `#(args*: Ident)` |
-| `#(T)` | Anonymous | Captures a specific `syn` type, but for validation only | `!` | `#(Ident)` |
-| `#(?: T)` | Anon Optional | Validation only; skips if failed | `!` | `#(?: Ident)` |
-| `#(*[sep]: T)` | Anon Iter | Similar to `Punctuated`, parses by separator (validation only) | `!` | `#(*[,]: Ident)` |
+| Syntax          | Type           | Description                                                                                           | Result Type                | Example                  |
+| :-------------- | :------------- | :---------------------------------------------------------------------------------------------------- | :------------------------- | :----------------------- |
+| `literal`       | Literal        | Matches and consumes a Token (Rust keywords/symbols like `fn`, `->` or custom ones like `miku`, `<>`) | `!`                        | `fn`, `->`, `miku`, `<>` |
+| `#(x: T)`       | Named Capture  | Captures a specific `syn` type                                                                        | `T` (e.g. `Ident`, `Type`) | `#(name: Ident)`         |
+| `#(x?: T)`      | Named Optional | Attempts to parse; skips if failed                                                                    | `Option<T>`                | `#(name?: Ident)`        |
+| `#(x*[sep]: T)` | Named Iter     | Similar to `Punctuated`, parses by separator                                                          | `Punctuated<T, sep>`       | `#(args*: Ident)`        |
+| `#(T)`          | Anonymous      | Captures a specific `syn` type, but for validation only                                               | `!`                        | `#(Ident)`               |
+| `#(?: T)`       | Anon Optional  | Validation only; skips if failed                                                                      | `!`                        | `#(?: Ident)`            |
+| `#(*[sep]: T)`  | Anon Iter      | Similar to `Punctuated`, parses by separator (validation only)                                        | `!`                        | `#(*[,]: Ident)`         |
 
 ---
 
@@ -183,7 +197,7 @@ Vacro's DSL design intuition comes from `macro_rules!` and regular expressions.
 
 #### A. Associative/Structural Capture
 
-*Solves the "Array of Structs (AoS)" problem, i.e., capturing aggregated structures at once rather than scattered lists of fields.*
+_Solves the "Array of Structs (AoS)" problem, i.e., capturing aggregated structures at once rather than scattered lists of fields._
 
 - [ ] **Syntax Implementation**: Support `#(~name...: ...)` syntax to mark aggregated captures.
 - [ ] **Tuple Support**: Implement `#(~items*: #(@:Type) #(@:Ident))` to generate `Vec<(Type, Ident)>`.
@@ -191,7 +205,7 @@ Vacro's DSL design intuition comes from `macro_rules!` and regular expressions.
 
 #### B. Polymorphic Capture (Enum Parsing)
 
-*Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multiple types.*
+_Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multiple types._
 
 - [ ] **Syntax Implementation**: Support `#(name: EnumName { VariantA, VariantB })` syntax.
 - [ ] **Automatic Definition**: If `EnumName` is undefined, automatically generate an enum definition containing `VariantA(TypeA)`, `VariantB(TypeB)`.

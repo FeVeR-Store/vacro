@@ -1,13 +1,13 @@
-use std::{
-    collections::HashMap,
-    sync::atomic::{AtomicI32, Ordering},
-};
+use std::collections::HashMap;
 
 use proc_macro2::{Punct, TokenStream, TokenTree};
 use quote::{ToTokens, TokenStreamExt, format_ident, quote};
-use syn::{Ident, parse::Parse};
+use syn::Ident;
 
-#[derive(Debug, Clone)]
+use crate::parser::context::ParseContext;
+
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub enum Keyword {
     Rust(String),
     Custom {
@@ -17,7 +17,8 @@ pub enum Keyword {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct KeywordMap(HashMap<String, TokenStream>);
 
 impl KeywordMap {
@@ -33,6 +34,10 @@ impl ToTokens for KeywordMap {
 }
 
 impl Keyword {
+    pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
+        let tt: TokenTree = input.parse()?;
+        Ok(parse_keyword(tt, ctx))
+    }
     pub fn get_definition(&self) -> TokenStream {
         match self {
             Keyword::Custom {
@@ -231,16 +236,7 @@ impl ToTokens for Keyword {
     }
 }
 
-impl Parse for Keyword {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let tt: TokenTree = input.parse()?;
-        Ok(parse_keyword(tt))
-    }
-}
-
-static ITER: AtomicI32 = AtomicI32::new(0);
-
-pub fn parse_keyword(input: impl ToString) -> Keyword {
+pub fn parse_keyword(input: impl ToString, ctx: &mut ParseContext) -> Keyword {
     match input.to_string().as_str() {
         keyword @ ("abstract" | "as" | "async" | "auto" | "await" | "become" | "box" | "break"
         | "const" | "continue" | "crate" | "default" | "do" | "dyn" | "else"
@@ -257,7 +253,8 @@ pub fn parse_keyword(input: impl ToString) -> Keyword {
         keyword => {
             let punctuation = !keyword.chars().next().unwrap().is_alphabetic();
             let name = if punctuation {
-                let i = ITER.load(Ordering::Relaxed).to_string();
+                let i = ctx.custom_symbol_counter;
+                ctx.custom_symbol_counter += 1;
                 format_ident!("Punt_{}", i)
             } else {
                 format_ident!("{}", keyword)
@@ -278,15 +275,21 @@ mod tests {
     use syn::{
         Result, Token,
         parse::{ParseStream, Parser},
-        parse2,
     };
 
     use super::*;
+
+    fn parse_keyword<'a>(tokens: TokenStream, ctx: &mut ParseContext) -> Result<Keyword> {
+        let parser = move |input: ParseStream| -> Result<Keyword> { Keyword::parse(input, ctx) };
+        parser.parse2(tokens)
+    }
+
     #[test]
     fn test_rust_keywords() {
+        let ctx = &mut ParseContext::default();
         for _tokens in vec![quote! { fn }, quote! { let }, quote! { if }] {
-            let keyword: Keyword = parse2(_tokens.clone()).unwrap();
-            let _k = Keyword::Rust(_tokens.clone().to_string());
+            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
+            let _k = Keyword::Rust(_tokens.to_string());
             let keyword_tokens = quote! {#keyword};
             assert_eq!(matches!(keyword, _k), true);
             assert_eq!(matches!(keyword_tokens, _tokens), true);
@@ -294,8 +297,9 @@ mod tests {
     }
     #[test]
     fn test_custom_keywords() {
+        let ctx = &mut ParseContext::default();
         for _tokens in vec![quote! { miku }, quote! { teto }, quote! { len }] {
-            let keyword: Keyword = parse2(_tokens.clone()).unwrap();
+            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
             let _k = Keyword::Custom {
                 punctuation: true,
                 name: format_ident!("{}", _tokens.to_string()),
@@ -308,8 +312,9 @@ mod tests {
     }
     #[test]
     fn test_rust_punctuation() {
+        let ctx = &mut ParseContext::default();
         for _tokens in vec![quote! { ! }, quote! { ? }, quote! { . }] {
-            let keyword: Keyword = parse2(_tokens.clone()).unwrap();
+            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
             let _k = Keyword::Rust(_tokens.clone().to_string());
             let keyword_tokens = quote! {#keyword};
             assert_eq!(matches!(keyword, _k), true);
@@ -318,12 +323,13 @@ mod tests {
     }
     #[test]
     fn test_custom_punctuation() {
+        let ctx = &mut ParseContext::default();
         for _tokens in vec![quote! { <> }, quote! { ?! }, quote! { ~~> }] {
             // 与上面的解析不同，自定义符号的解析需要手动搜集，这里使用了pattern处的代码，但有修改
             // 因为quote会自动分词，'<>' -> '< >'，所以不再检查Spacing
             let parser = |input: ParseStream| -> Result<Keyword> {
                 let mut collect = String::new();
-                let mut punct: Punct = input.parse().expect("heeee");
+                let mut punct: Punct = input.parse()?;
                 while !input.is_empty() {
                     println!("{}", punct.to_string());
                     if input.peek(Token![#]) {
@@ -331,17 +337,17 @@ mod tests {
                     }
                     collect.push(punct.as_char());
                     println!("{}", input.to_string());
-                    punct = input.parse().expect("hiiiii");
+                    punct = input.parse()?;
                 }
                 collect.push(punct.as_char());
-                Ok(parse_keyword(collect))
+                Ok(super::parse_keyword(collect, ctx))
             };
 
             let keyword = parser.parse2(_tokens.clone()).unwrap();
 
             let _k = Keyword::Custom {
                 punctuation: true,
-                name: format_ident!("Punt_{}", ITER.load(Ordering::Relaxed).to_string()),
+                name: format_ident!("Punt_{}", ctx.custom_symbol_counter.to_string()),
                 content: _tokens.to_string(),
             };
             let keyword_tokens = quote! {#keyword};
