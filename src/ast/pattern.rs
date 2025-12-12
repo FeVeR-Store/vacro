@@ -5,7 +5,7 @@ use syn::{Ident, Type};
 
 use crate::{
     ast::{capture::CaptureSpec, keyword::Keyword},
-    parser::context::ParseContext,
+    syntax::context::ParseContext,
 };
 
 pub type IsOptional = bool;

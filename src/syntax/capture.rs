@@ -8,7 +8,7 @@ use crate::{
         keyword::Keyword,
         pattern::{Pattern, PatternList},
     },
-    parser::context::ParseContext,
+    syntax::context::ParseContext,
 };
 
 impl CaptureSpec {

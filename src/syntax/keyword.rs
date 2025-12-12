@@ -1,7 +1,7 @@
 use proc_macro2::TokenTree;
 use quote::format_ident;
 
-use crate::{ast::keyword::Keyword, parser::context::ParseContext};
+use crate::{ast::keyword::Keyword, syntax::context::ParseContext};
 
 impl Keyword {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
