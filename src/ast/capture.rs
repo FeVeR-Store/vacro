@@ -1,32 +1,11 @@
-//! ## 对于CaptureSpec的解析
-//! 捕获组支持的语法有：
-//! 1.具名捕获，用于生成实现了Parse的结构体:
-//!    <Name>: <Capture> eg: `name: Ident` -> `name: Ident`
-//!    <Name>?: <Capture> eg: `visibility?: Visibility` -> `visibility: Option<Visibility>`
-//!    <Name>*[<Separator>]: <Capture> eg: `args*[,]: Ident` -> `args: Punctuated<Ident, Token![,]>`
-//! 2. 匿名捕获，用于校验，不捕获内容:
-//!    <Capture> eg: `Ident`
-//!    ?:<Capture> eg: `?: Visibility`
-//!    *[<Separator>]:<Capture> eg: `*[,]: Ident`
-//! 3. 行内捕获，用于直接捕获，捕获的值会组成元组:
-//!    @:<Capture> eg: `@: Ident`
-//!    @?:<Capture> eg: `@?: Visibility`
-//!    @*[<Separator>]:<Capture> eg: `@*[,]: Ident`
-//!
-//! 捕获的类型：
-//!  - `impl syn::Parse`
-//!  - 匿名捕获时，可为另一个结构
 use std::sync::{Arc, Mutex};
 
-use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
-use syn::{Ident, Token, Type, bracketed, parenthesized, parse_quote, spanned::Spanned, token};
+use quote::format_ident;
+use syn::{Ident, Type, parse_quote};
 
-use crate::parser::{
-    context::ParseContext,
+use crate::ast::{
     keyword::Keyword,
-    output::generate_output,
-    pattern::{IsOptional, Pattern, PatternList},
+    pattern::{IsOptional, PatternList},
 };
 
 #[derive(Clone)]
@@ -47,14 +26,14 @@ pub enum ExposeMode {
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct CaptureSpec {
-    name: ExposeMode,  // 暴露模式
-    ty: CaptureType,   // 类型
-    mode: CaptureMode, // Once, Optional, Iter
+    pub name: ExposeMode,  // 暴露模式
+    pub ty: CaptureType,   // 类型
+    pub mode: CaptureMode, // Once, Optional, Iter
 }
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-enum CaptureMode {
+pub enum CaptureMode {
     Once,
     Optional,
     Iter(Keyword),
@@ -120,316 +99,24 @@ impl CaptureSpec {
     }
 }
 
-impl ToTokens for CaptureSpec {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let CaptureSpec { ty, mode, name, .. } = self;
-        let receiver = match name {
-            ExposeMode::Named(ident) => {
-                quote! {#ident = }
-            }
-            ExposeMode::Inline(i) => {
-                let id = format_ident!("_{}", i.to_string());
-                quote! {#id = }
-            }
-            _ => quote! {},
-        };
-        let t = match (name, mode, ty) {
-            (_, CaptureMode::Once, CaptureType::Type(ty)) => {
-                quote! {
-                    {
-                        #receiver input.parse::<#ty>()?;
-                    }
-                }
-            }
-            (_, CaptureMode::Optional, CaptureType::Type(ty)) => {
-                quote! {
-                    {
-                        let _fork = input.fork();
-                        if ::std::result::Ok(_parsed) = _fork.parse::<#ty>() {
-                            #receiver ::std::option::Option::Some(_parsed);
-                        }
-                    }
-                }
-            }
-            (_, CaptureMode::Iter(separator), CaptureType::Type(ty)) => {
-                quote! {
-                    {
-                        #[allow(non_local_definitions)]
-                        impl _Parse for #ty {}
-                        #receiver input.parse_terminated(#ty::parse, #separator)?;
-                    }
-                }
-            }
-            (ExposeMode::Anonymous, CaptureMode::Once, CaptureType::Joint(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.list.clone());
-
-                let patterns = PatternList {
-                    list: optimized_list,
-                    capture_list: _patterns.capture_list.clone(),
-                    parse_context: _patterns.parse_context.clone(),
-                };
-                quote! {
-                    {
-                        #patterns
-                    }
-                }
-            }
-            (ExposeMode::Anonymous, CaptureMode::Optional, CaptureType::Joint(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.list.clone());
-
-                let patterns = PatternList {
-                    list: optimized_list,
-                    capture_list: _patterns.capture_list.clone(),
-                    parse_context: _patterns.parse_context.clone(),
-                };
-
-                let joint_token = quote! { #patterns };
-                let (capture_init, struct_def, struct_expr) =
-                    generate_output(patterns.capture_list.clone(), None, &patterns.parse_context);
-                let fields = patterns
-                    .capture_list
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .map(|(name, ..)| name.clone())
-                    .collect::<Vec<_>>();
-
-                let assigns_err = fields.iter().map(|ident| {
-                    quote! { #ident = ::std::option::Option::None; }
-                });
-                let assigns_ok = fields.iter().map(|ident| {
-                    quote! { #ident = ::std::option::Option::Some(output.#ident); }
-                });
-
-                quote! {
-                    #struct_def
-                    let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
-                        #capture_init
-                        #joint_token
-                        ::std::result::Result::Ok(#struct_expr)
-                    };
-                    match _parser(input) {
-                        ::std::result::Result::Ok(output) => {
-                            #(#assigns_ok)*
-                        }
-                        ::std::result::Result::Err(err) => {
-                            #(#assigns_err)*
-                        }
-                    }
-                    let _ = _parser(input);
-                }
-            }
-            _ => quote! {},
-        };
-        tokens.extend(t);
-    }
-}
-
-impl CaptureSpec {
-    pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
-        let lookahead = input.lookahead1();
-        let fork = input.fork();
-        if fork.parse::<Type>().is_ok() && fork.is_empty() {
-            // 匿名捕获 <Capture> 类型
-            let ty = CaptureType::parse(input, ctx)?;
-            let mode = CaptureMode::Once;
-            Ok(CaptureSpec {
-                name: ExposeMode::Anonymous,
-                ty,
-                mode,
-            })
-        } else if lookahead.peek(Ident) || lookahead.peek(Token![@]) {
-            let i = ctx.inline_counter;
-            let inline_mode = ctx.inline_mode;
-            let name: ExposeMode = if lookahead.peek(Ident) {
-                let ident: Ident = input.parse()?;
-                if i != 0 {
-                    return Err(syn::Error::new(
-                        ident.span(),
-                        "unexpected named capture; previous captures were inline",
-                    ));
-                }
-                if !inline_mode {
-                    ctx.inline_mode = false;
-                }
-                ExposeMode::Named(ident)
-            } else {
-                let _at = input.parse::<Token![@]>()?;
-                if inline_mode {
-                    return Err(syn::Error::new(
-                        _at.span(),
-                        "unexpected inline capture; previous captures were named",
-                    ));
-                }
-                ctx.inline_counter += 1;
-                ExposeMode::Inline(i)
-            };
-            let mut mode = CaptureMode::Once;
-            if input.peek(Token![?]) {
-                mode = CaptureMode::Optional;
-                input.parse::<Token![?]>()?;
-            } else if input.peek(Token![*]) {
-                input.parse::<Token![*]>()?;
-                if input.peek(token::Bracket) {
-                    let content;
-                    let _br = bracketed!(content in input);
-                    if content.is_empty() {
-                        return Err(input.error("expected '[<separator>]' like '[,]'"));
-                    }
-                    let separater = Keyword::parse(&content, ctx)?;
-                    mode = CaptureMode::Iter(separater);
-                } else {
-                    return Err(input.error("expected '[<separator>]' like '[,]'"));
-                };
-            }
-            if input.peek(Token![:]) {
-                let _colon = input.parse::<Token![:]>()?;
-                let ty: Type = input.parse()?;
-                Ok(CaptureSpec {
-                    name,
-                    ty: CaptureType::Type(ty),
-                    mode,
-                })
-            } else {
-                Err(input.error("expected ':' after capture name"))
-            }
-        } else {
-            let mut mode = CaptureMode::Once;
-            if input.peek(Token![?]) {
-                mode = CaptureMode::Optional;
-                input.parse::<Token![?]>()?;
-            } else if input.peek(Token![*]) {
-                input.parse::<Token![*]>()?;
-                if input.peek(token::Bracket) {
-                    let content;
-                    let _br = bracketed!(content in input);
-                    if content.is_empty() {
-                        return Err(input.error("expected '[<separator>]' like '[,]'"));
-                    }
-                    let separater = Keyword::parse(&content, ctx)?;
-                    mode = CaptureMode::Iter(separater);
-                } else {
-                    return Err(input.error("expected '[<separator>]' like '[,]'"));
-                };
-            }
-            let _colon = input.parse::<Token![:]>()?;
-            let ty = CaptureType::parse(input, ctx)?;
-            Ok(CaptureSpec {
-                name: ExposeMode::Anonymous,
-                ty,
-                mode,
-            })
-        }
-    }
-}
-
-impl CaptureType {
-    pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
-        let cap = if input.peek(Token![#]) {
-            input.parse::<Token![#]>()?;
-            if !input.peek(token::Paren) {
-                let mut pattern_list = PatternList::parse(input)?;
-                pattern_list
-                    .list
-                    .insert(0, Pattern::Literal(Keyword::Rust(String::from("#"))));
-                return Ok(Self::Joint(pattern_list));
-            }
-            let content;
-            let _paren = parenthesized!(content in input);
-            let spec = CaptureSpec::parse(&content, ctx)?;
-
-            Self::Joint(PatternList {
-                list: vec![Pattern::Capture(spec, None)],
-                capture_list: Arc::new(Mutex::new(vec![])),
-                parse_context: ParseContext::default(),
-            })
-        } else if input.peek(Ident) {
-            let ident: Type = input.parse()?;
-            Self::Type(parse_quote!(#ident))
-        } else {
-            let pattern_list = PatternList::parse(input)?;
-            Self::Joint(pattern_list)
-        };
-        if !input.is_empty() {
-            match cap {
-                CaptureType::Type(_) => Err(syn::Error::new(
-                    input.span(),
-                    format!("Unexpected '{}'", input.to_string()),
-                )),
-                CaptureType::Joint(mut joint) => {
-                    let pattern_list = PatternList::parse(input)?;
-                    joint.list.extend(pattern_list.list);
-                    Ok(Self::Joint(joint))
-                }
-            }
-        } else {
-            Ok(cap)
-        }
-    }
-}
-
-/// 对模式列表进行“前瞻优化”：
-/// 如果一个捕获组 (Capture) 紧跟着一个字面量 (Literal)，
-/// 将该字面量注入到捕获组中作为 lookahead hint。
-fn inject_lookahead(patterns: Vec<Pattern>) -> Vec<Pattern> {
-    let mut optimized = Vec::with_capacity(patterns.len());
-    // 缓冲区：存放等待查看下一个 Token 的捕获组
-    let mut pending_capture: Option<Pattern> = None;
-
-    for pattern in patterns {
-        match pattern {
-            // 情况 A: 遇到了字面量 (例如 ",")
-            Pattern::Literal(ref keyword) => {
-                // 检查缓冲区里有没有正在等待前瞻的捕获组
-                if let Some(Pattern::Capture(spec, _)) = pending_capture {
-                    // 核心逻辑：注入前瞻信息
-                    // 将原来的 Capture(spec, None) 变为 Capture(spec, Some(keyword))
-                    optimized.push(Pattern::Capture(spec, Some(keyword.clone())));
-                } else if let Some(other) = pending_capture {
-                    // 防御性编程：虽然逻辑上 pending 只可能是 Capture，但如果有其他变体，原样推入
-                    optimized.push(other);
-                }
-
-                // 缓冲区已清空/消费
-                pending_capture = None;
-
-                // 字面量本身也必须保留在流中
-                optimized.push(pattern);
-            }
-
-            // 情况 B: 遇到了新的捕获组 (例如 #(name: Type))
-            Pattern::Capture(..) => {
-                // 如果之前还有一个捕获组没等到字面量 (比如连续两个捕获组)
-                if let Some(prev) = pending_capture {
-                    optimized.push(prev); // 前一个只能原样提交
-                }
-                // 将当前捕获组放入缓冲区等待
-                pending_capture = Some(pattern);
-            }
-
-            // 情况 C: 其他 Token (例如 Group)
-            other => {
-                // 结算缓冲区
-                if let Some(prev) = pending_capture {
-                    optimized.push(prev);
-                }
-                pending_capture = None;
-                optimized.push(other);
-            }
-        }
-    }
-
-    // 循环结束，处理缓冲区里最后残留的捕获组
-    if let Some(last) = pending_capture {
-        optimized.push(last);
-    }
-
-    optimized
-}
-
 #[cfg(test)]
 mod tests {
+
+    use std::sync::{Arc, Mutex};
+
+    use crate::{
+        ast::{
+            keyword::Keyword,
+            pattern::{IsOptional, Pattern},
+        },
+        codegen::logic::Compiler,
+        syntax::context::ParseContext,
+        transform::lookahead::inject_lookahead,
+    };
+
     use super::*;
+    use proc_macro2::TokenStream;
+    use quote::quote;
     use syn::{
         Result,
         parse::{ParseStream, Parser},
@@ -598,7 +285,8 @@ mod tests {
         let input = quote! { field: u32 };
         let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
 
-        let capture_list = Arc::new(Mutex::new(Vec::new()));
+        let capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>> =
+            Arc::new(Mutex::new(Vec::new()));
         spec.add_capture(capture_list.clone());
 
         let list = capture_list.lock().unwrap();
@@ -720,20 +408,21 @@ mod tests {
 
     #[test]
     fn test_to_tokens_smoke() {
+        let mut compiler = Compiler::new();
         let ctx = &mut ParseContext::default();
 
         // 只要不 Panic 且有输出即可，详细逻辑校验需要编译生成的代码
         let spec: CaptureSpec = parse_capture_spec(quote!(x: Ident), ctx).unwrap();
-        let tokens = quote!(#spec);
+        let tokens = compiler.compile_capture_spec(&spec);
         assert!(!tokens.is_empty());
 
         let spec_opt: CaptureSpec = parse_capture_spec(quote!(x?: Ident), ctx).unwrap();
-        let tokens_opt = quote!(#spec_opt);
+        let tokens_opt = compiler.compile_capture_spec(&spec_opt);
         // 生成的代码应该包含 Option 处理逻辑
         assert!(tokens_opt.to_string().contains("Option"));
 
         let spec_iter: CaptureSpec = parse_capture_spec(quote!(x*[,]: Ident), ctx).unwrap();
-        let tokens_iter = quote!(#spec_iter);
+        let tokens_iter = compiler.compile_capture_spec(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));
     }

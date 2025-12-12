@@ -1,106 +1,28 @@
-use proc_macro2::TokenStream;
-use quote::{ToTokens, quote};
-use syn::{Ident, Token, parse::Parse};
+use syn::{Ident, Token};
 
-use crate::parser::{output::generate_output, pattern::PatternList};
+use crate::ast::pattern::PatternList;
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct CaptureInput {
-    input: Ident,
-    _arrow: Token![->],
-    patterns: PatternList,
+    pub input: Ident,
+    pub _arrow: Token![->],
+    pub patterns: PatternList,
 }
 
-impl Parse for CaptureInput {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let ident = input.parse()?;
-        let _arrow = input.parse()?;
-        let patterns = PatternList::parse(input)?;
-        Ok(CaptureInput {
-            input: ident,
-            _arrow,
-            patterns,
-        })
-    }
-}
-
-impl ToTokens for CaptureInput {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let CaptureInput {
-            input, patterns, ..
-        } = self;
-        let patterns_tokens = quote! {
-            #patterns
-        };
-
-        let (capture_init, struct_def, struct_expr) =
-            generate_output(patterns.capture_list.clone(), None, &patterns.parse_context);
-
-        tokens.extend(quote! {
-            {
-                trait _Parse: ::syn::parse::Parse {}
-                #capture_init
-                #struct_def
-                let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
-                    #capture_init
-                    #patterns_tokens
-                    ::std::result::Result::Ok(#struct_expr)
-                };
-                ::syn::parse::Parser::parse2(parser, #input)
-            }
-        });
-    }
-}
-
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct DefineInput {
-    name: Ident,
-    _colon: Token![:],
-    patterns: PatternList,
-}
-
-impl Parse for DefineInput {
-    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let name = input.parse()?;
-        let _colon = input.parse()?;
-        let patterns = PatternList::parse(input)?;
-        Ok(DefineInput {
-            name,
-            _colon,
-            patterns,
-        })
-    }
-}
-
-impl ToTokens for DefineInput {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let DefineInput { name, patterns, .. } = self;
-        let patterns_tokens = quote! {
-            #patterns
-        };
-
-        let (capture_init, struct_def, struct_expr) = generate_output(
-            patterns.capture_list.clone(),
-            Some(name.clone()),
-            &patterns.parse_context,
-        );
-
-        tokens.extend(quote! {
-            #struct_def
-            impl ::syn::parse::Parse for #name {
-                fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-                    trait _Parse: ::syn::parse::Parse {}
-                    #capture_init
-                    #patterns_tokens
-                    ::std::result::Result::Ok(#struct_expr)
-                }
-            }
-        });
-    }
+    pub name: Ident,
+    pub _colon: Token![:],
+    pub patterns: PatternList,
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::codegen::logic::Compiler;
+
     use super::*;
+    use quote::quote;
+
     use syn::parse2;
 
     // --- 1. 语法解析测试 (impl Parse) ---
@@ -150,12 +72,13 @@ mod tests {
 
     #[test]
     fn test_to_tokens_structure() {
+        let mut compiler = Compiler::new();
         // 构建一个有效的 CaptureInput
         let stream = quote! { tokens -> #(val: Ident) };
         let capture_input: CaptureInput = parse2(stream).unwrap();
 
         // 生成代码
-        let output = quote! { #capture_input };
+        let output = compiler.compile_capture_input(&capture_input);
         let output_str = output.to_string();
 
         // --- 静态检查生成的代码结构 ---
@@ -181,11 +104,12 @@ mod tests {
 
     #[test]
     fn test_to_tokens_scope_block() {
+        let mut compiler = Compiler::new();
         // 确保生成的代码被包裹在一个独立的块 {} 中
         // 这样生成的 struct Output 不会污染外部作用域
         let stream = quote! { t -> v: Ident };
         let capture_input: CaptureInput = parse2(stream).unwrap();
-        let output = quote! { #capture_input };
+        let output = compiler.compile_capture_input(&capture_input);
 
         let output_str = output.to_string();
         assert!(output_str.trim().starts_with("{"));
@@ -195,9 +119,10 @@ mod tests {
     // 集成测试模拟：检查生成的逻辑是否包含捕获组初始化
     #[test]
     fn test_generated_logic_contains_initialization() {
+        let mut compiler = Compiler::new();
         let stream = quote! { t -> #(val?: Ident) };
         let capture_input: CaptureInput = parse2(stream).unwrap();
-        let output = quote! { #capture_input }.to_string();
+        let output = compiler.compile_capture_input(&capture_input).to_string();
 
         // generate_output 会生成类似 `let mut val = None;` 的代码
         // 虽然具体变量名可能因为 generate_output 的实现而不同(如果是 named 应该是 val)
