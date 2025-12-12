@@ -1,19 +1,19 @@
 use syn::{Ident, Token};
 
-use crate::ast::pattern::PatternList;
+use crate::ast::node::Pattern;
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct CaptureInput {
     pub input: Ident,
     pub _arrow: Token![->],
-    pub patterns: PatternList,
+    pub patterns: Pattern,
 }
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct DefineInput {
     pub name: Ident,
     pub _colon: Token![:],
-    pub patterns: PatternList,
+    pub patterns: Pattern,
 }
 
 #[cfg(test)]

@@ -3,103 +3,49 @@ use std::sync::{Arc, Mutex};
 use quote::format_ident;
 use syn::{Ident, Type, parse_quote};
 
-use crate::ast::{
-    keyword::Keyword,
-    pattern::{IsOptional, PatternList},
-};
+use crate::ast::{keyword::Keyword, node::Pattern};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub enum CaptureType {
-    Type(Type),
-    Joint(PatternList),
+pub struct Capture {
+    pub binder: Binder,     // 1. 绑定给谁？
+    pub matcher: Matcher,   // 2. 解析什么？
+    pub quantity: Quantity, // 3. 解析多少次？
+
+    // 用于标记边缘
+    pub edge: Option<Keyword>,
 }
 
+/// 绑定模式
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub enum ExposeMode {
-    Inline(usize),
-    Named(Ident),
-    Anonymous,
+pub enum Binder {
+    Named(syn::Ident), // name: ...
+    Inline(usize),     // @: ...
+    Anonymous,         // _: ...
 }
 
+/// 匹配器
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub struct CaptureSpec {
-    pub name: ExposeMode,  // 暴露模式
-    pub ty: CaptureType,   // 类型
-    pub mode: CaptureMode, // Once, Optional, Iter
+pub enum Matcher {
+    /// 标准 Syn 类型 (e.g. `Ident`, `Type`)
+    SynType(syn::Type),
+
+    /// 嵌套结构 (e.g. `#( ... )`)
+    Nested(Vec<Pattern>),
 }
 
+/// 数量限定 (对应原 CaptureMode)
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub enum CaptureMode {
-    Once,
-    Optional,
-    Iter(Keyword),
+pub enum Quantity {
+    One,                   // 默认
+    Optional,              // ?
+    Many(Option<Keyword>), // * 或 *[,]
 }
 
-impl CaptureSpec {
-    pub fn add_capture(&self, capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>>) {
-        match self {
-            CaptureSpec {
-                ty: CaptureType::Joint(joint),
-                mode,
-                ..
-            } => capture_list.lock().unwrap().extend(
-                joint.capture_list.clone().lock().unwrap().iter().map(
-                    |(ident, ty, is_optional)| match mode {
-                        CaptureMode::Optional => (
-                            ident.clone(),
-                            parse_quote!(::std::option::Option<#ty>),
-                            true,
-                        ),
-                        CaptureMode::Iter(sep) => (
-                            ident.clone(),
-                            parse_quote!(::syn::punctuated::Punctuated<#ty, #sep>),
-                            *is_optional,
-                        ),
-                        CaptureMode::Once => (ident.clone(), ty.clone(), *is_optional),
-                    },
-                ),
-            ),
-            CaptureSpec {
-                name,
-                ty: CaptureType::Type(ty),
-                mode,
-            } => {
-                let ident = match name {
-                    ExposeMode::Named(named) => named.clone(),
-                    ExposeMode::Inline(i) => {
-                        format_ident!("_{}", i.to_string())
-                    }
-                    _ => return,
-                };
-                let is_optional;
-                let ty: Type = match mode {
-                    CaptureMode::Iter(sep) => {
-                        is_optional = false;
-                        parse_quote!(::syn::punctuated::Punctuated<#ty, #sep>)
-                    }
-                    CaptureMode::Once => {
-                        is_optional = false;
-                        parse_quote!(#ty)
-                    }
-                    CaptureMode::Optional => {
-                        is_optional = true;
-                        parse_quote!(::std::option::Option<#ty>)
-                    }
-                };
-                capture_list
-                    .lock()
-                    .unwrap()
-                    .push((ident.clone(), ty, is_optional));
-            }
-        }
-    }
-}
-
-#[cfg(test)]
+#[cfg(_test)]
 mod tests {
 
     use std::sync::{Arc, Mutex};
