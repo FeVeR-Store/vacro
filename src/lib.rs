@@ -14,12 +14,11 @@
 
 pub(crate) mod ast;
 pub(crate) mod codegen;
+mod impls;
 pub(crate) mod syntax;
 pub(crate) mod transform;
 
 use proc_macro::TokenStream;
-mod impls;
-pub(crate) mod parser;
 
 use crate::impls::{capture_impl, define_impl};
 
