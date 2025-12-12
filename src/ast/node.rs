@@ -40,10 +40,25 @@ pub enum PatternKind {
 
     /// 捕获节点 (e.g. `#(name: Type)`)
     Capture(Capture),
+}
 
-    /// [v0.2] 多态分支 (e.g. `#(name: { A, B })`)
-    Alternation(Vec<Pattern>),
-
-    /// [v0.2] 关联聚合 (e.g. `#(~...)`)
-    Structural(Vec<Pattern>),
+impl Pattern {
+    pub fn collect_captures(&self) -> Vec<&Capture> {
+        let mut capture = vec![];
+        self.visit_captures(&mut capture);
+        capture
+    }
+    pub fn visit_captures<'a>(&'a self, collector: &mut Vec<&'a Capture>) {
+        match &self.kind {
+            PatternKind::Capture(capture) => {
+                capture.visit_captures(collector);
+            }
+            PatternKind::Group { children, .. } => {
+                for child in children {
+                    child.visit_captures(collector);
+                }
+            }
+            _ => (),
+        }
+    }
 }

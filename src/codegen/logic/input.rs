@@ -13,10 +13,10 @@ impl Compiler {
         let CaptureInput {
             input, patterns, ..
         } = input;
-        let patterns_tokens = self.compile_pattern_list(patterns);
+        let patterns_tokens = self.compile_pattern(patterns);
+        let captures = patterns.collect_captures();
 
-        let (capture_init, struct_def, struct_expr) =
-            generate_output(patterns.capture_list.clone(), None, &patterns.parse_context);
+        let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
 
         tokens.extend(quote! {
             {
@@ -36,13 +36,12 @@ impl Compiler {
     pub fn compile_define_input(&mut self, input: &DefineInput) -> TokenStream {
         let mut tokens = TokenStream::new();
         let DefineInput { name, patterns, .. } = input;
-        let patterns_tokens = self.compile_pattern_list(patterns);
+        let patterns_tokens = self.compile_pattern(patterns);
 
-        let (capture_init, struct_def, struct_expr) = generate_output(
-            patterns.capture_list.clone(),
-            Some(name.clone()),
-            &patterns.parse_context,
-        );
+        let captures = patterns.collect_captures();
+
+        let (capture_init, struct_def, struct_expr, _) =
+            generate_output(&captures, Some(name.clone()));
 
         tokens.extend(quote! {
             #struct_def

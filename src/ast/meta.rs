@@ -5,7 +5,7 @@
 //! `SemanticInfo`是用于生成更友好的错误信息的
 //!
 //! </div>
-
+#[allow(unused)]
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct SemanticInfo {

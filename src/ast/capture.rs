@@ -1,19 +1,22 @@
-use std::sync::{Arc, Mutex};
-
-use quote::format_ident;
-use syn::{Ident, Type, parse_quote};
+use proc_macro2::Span;
+use syn::{Token, token};
 
 use crate::ast::{keyword::Keyword, node::Pattern};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct Capture {
+    pub _hash_tag: Token![#],
+    pub _paren: token::Paren,
+
     pub binder: Binder,     // 1. 绑定给谁？
     pub matcher: Matcher,   // 2. 解析什么？
     pub quantity: Quantity, // 3. 解析多少次？
 
     // 用于标记边缘
     pub edge: Option<Keyword>,
+
+    pub span: Span,
 }
 
 /// 绑定模式
@@ -28,7 +31,15 @@ pub enum Binder {
 /// 匹配器
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub enum Matcher {
+pub struct Matcher {
+    pub kind: MatcherKind,
+    pub span: Span,
+}
+
+/// 匹配器
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+pub enum MatcherKind {
     /// 标准 Syn 类型 (e.g. `Ident`, `Type`)
     SynType(syn::Type),
 
@@ -36,7 +47,7 @@ pub enum Matcher {
     Nested(Vec<Pattern>),
 }
 
-/// 数量限定 (对应原 CaptureMode)
+/// 数量限定
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub enum Quantity {
@@ -45,16 +56,32 @@ pub enum Quantity {
     Many(Option<Keyword>), // * 或 *[,]
 }
 
-#[cfg(_test)]
+impl Capture {
+    pub fn collect_captures(&self) -> Vec<&Capture> {
+        let mut collector = vec![];
+        self.visit_captures(&mut collector);
+        collector
+    }
+    pub fn visit_captures<'a>(&'a self, collector: &mut Vec<&'a Capture>) {
+        // 核心分支：看 Matcher 是什么类型
+        match &self.matcher.kind {
+            MatcherKind::Nested(children) => {
+                for child in children {
+                    child.visit_captures(collector);
+                }
+            }
+            MatcherKind::SynType(_) => {
+                collector.push(self);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
 
-    use std::sync::{Arc, Mutex};
-
     use crate::{
-        ast::{
-            keyword::Keyword,
-            pattern::{IsOptional, Pattern},
-        },
+        ast::{keyword::Keyword, node::PatternKind},
         codegen::logic::Compiler,
         syntax::context::ParseContext,
         transform::lookahead::inject_lookahead,
@@ -71,35 +98,35 @@ mod tests {
     // --- 辅助函数：用于简化断言 ---
 
     // 检查是否是具名捕获
-    fn assert_named(spec: &CaptureSpec, expected_name: &str) {
-        if let ExposeMode::Named(ident) = &spec.name {
+    fn assert_named(capture: &Capture, expected_name: &str) {
+        if let Binder::Named(ident) = &capture.binder {
             assert_eq!(ident.to_string(), expected_name);
         } else {
-            panic!("Expected Named capture, got {:?}", spec.name);
+            panic!("Expected Named capture, got {:?}", capture.binder);
         }
     }
 
     // 检查是否是行内捕获 (@)
-    fn assert_inline(spec: &CaptureSpec) {
-        if !matches!(spec.name, ExposeMode::Inline(_)) {
-            panic!("Expected Inline capture, got {:?}", spec.name);
+    fn assert_inline(capture: &Capture) {
+        if !matches!(capture.binder, Binder::Inline(_)) {
+            panic!("Expected Inline capture, got {:?}", capture.binder);
         }
     }
 
     // 检查是否是匿名捕获
-    fn assert_anonymous(spec: &CaptureSpec) {
-        if !matches!(spec.name, ExposeMode::Anonymous) {
-            panic!("Expected Anonymous capture, got {:?}", spec.name);
+    fn assert_anonymous(capture: &Capture) {
+        if !matches!(capture.binder, Binder::Anonymous) {
+            panic!("Expected Anonymous capture, got {:?}", capture.binder);
         }
     }
 
-    fn parse_capture_spec(input: TokenStream, ctx: &mut ParseContext) -> Result<CaptureSpec> {
-        let parser = move |input: ParseStream| CaptureSpec::parse(input, ctx);
+    fn parse_capture(input: TokenStream, ctx: &mut ParseContext) -> Result<Capture> {
+        let parser = move |input: ParseStream| Capture::parse(input, ctx);
         parser.parse2(input)
     }
 
-    fn parse_capture_type(input: TokenStream, ctx: &mut ParseContext) -> Result<CaptureType> {
-        let parser = move |input: ParseStream| CaptureType::parse(input, ctx);
+    fn parse_capture_matcher(input: TokenStream, ctx: &mut ParseContext) -> Result<Matcher> {
+        let parser = move |input: ParseStream| Matcher::parse(input, ctx);
         parser.parse2(input)
     }
 
@@ -110,10 +137,10 @@ mod tests {
         let ctx = &mut ParseContext::default();
         // 语法: name: Type
         let input = quote! { my_field: syn::Ident };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-        assert_named(&spec, "my_field");
-        assert!(matches!(spec.mode, CaptureMode::Once));
-        assert!(matches!(spec.ty, CaptureType::Type(_)));
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "my_field");
+        assert!(matches!(capture.quantity, Quantity::One));
+        assert!(matches!(capture.matcher.kind, MatcherKind::SynType(_)));
     }
 
     #[test]
@@ -121,9 +148,9 @@ mod tests {
         let ctx = &mut ParseContext::default();
         // 语法: name?: Type
         let input = quote! { maybe_val?: u32 };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-        assert_named(&spec, "maybe_val");
-        assert!(matches!(spec.mode, CaptureMode::Optional));
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "maybe_val");
+        assert!(matches!(capture.quantity, Quantity::Optional));
     }
 
     #[test]
@@ -132,10 +159,10 @@ mod tests {
 
         // 语法: name*[,]: Type
         let input = quote! { list*[,]: Ident };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-        assert_named(&spec, "list");
-        if let CaptureMode::Iter(sep) = &spec.mode {
-            if let Keyword::Rust(s) = sep {
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "list");
+        if let Quantity::Many(sep) = &capture.quantity {
+            if let Some(Keyword::Rust(s)) = sep {
                 assert_eq!(s, ",");
             } else {
                 panic!("Expected Rust keyword separator");
@@ -152,14 +179,14 @@ mod tests {
         // 语法: @: Type, @?: Type, @*[;]: Type
         // 注意：原子计数器 ITER 会在测试间共享，所以不校验具体的 Index 值
         let input1 = quote! { @: Ident };
-        let spec1: CaptureSpec = parse_capture_spec(input1, ctx).unwrap();
+        let spec1: Capture = parse_capture(input1, ctx).unwrap();
         assert_inline(&spec1);
-        assert!(matches!(spec1.mode, CaptureMode::Once));
+        assert!(matches!(spec1.quantity, Quantity::One));
 
         let input2 = quote! { @?: Ident };
-        let spec2: CaptureSpec = parse_capture_spec(input2, ctx).unwrap();
+        let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_inline(&spec2);
-        assert!(matches!(spec2.mode, CaptureMode::Optional));
+        assert!(matches!(spec2.quantity, Quantity::Optional));
     }
 
     #[test]
@@ -168,15 +195,15 @@ mod tests {
 
         // 语法: Type (无名称)
         let input = quote! { syn::Type };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-        assert_anonymous(&spec);
-        assert!(matches!(spec.mode, CaptureMode::Once));
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_anonymous(&capture);
+        assert!(matches!(capture.quantity, Quantity::One));
 
         // 语法: ?: Type
         let input2 = quote! { ?: syn::Visibility };
-        let spec2: CaptureSpec = parse_capture_spec(input2, ctx).unwrap();
+        let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_anonymous(&spec2);
-        assert!(matches!(spec2.mode, CaptureMode::Optional));
+        assert!(matches!(spec2.quantity, Quantity::Optional));
     }
 
     #[test]
@@ -184,25 +211,28 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 语法: #( ... )
-        // 模拟 Joint 解析，注意这里依赖 pattern 模块的解析逻辑，假设 pattern 也能 parse
+        // 模拟 Nested 解析，注意这里依赖 pattern 模块的解析逻辑，假设 pattern 也能 parse
         let input = quote! { ?: -> #( name: Ident ) };
-        let result = parse_capture_type(input, ctx);
+        let result = parse_capture_matcher(input, ctx);
 
-        // 注意：由于 CaptureType::parse 对于 # 的处理比较特殊，
-        // 这里主要测试它能识别 # 并返回 Joint 变体
+        // 注意：由于 MatcherKind::parse 对于 # 的处理比较特殊，
+        // 这里主要测试它能识别 # 并返回 Nested 变体
         match result {
-            Ok(CaptureType::Joint(pattern_list)) => {
-                // Joint 模式下，列表第一个元素应该是字面量 "#"
-                assert!(!pattern_list.list.is_empty());
+            Ok(Matcher {
+                kind: MatcherKind::Nested(pattern_list),
+                ..
+            }) => {
+                // Nested 模式下，列表第一个元素应该是字面量 "#"
+                assert!(!pattern_list.is_empty());
                 #[allow(unused)]
                 let _keyword = Keyword::Rust(String::from("->"));
-                if let Pattern::Literal(kw) = &pattern_list.list[0] {
+                if let PatternKind::Literal(kw) = &pattern_list[0].kind {
                     assert!(matches!(kw, _keyword));
                 } else {
-                    panic!("First element of Joint should be # literal");
+                    panic!("First element of Nested should be # literal");
                 }
             }
-            Ok(_) => panic!("Expected Joint capture type"),
+            Ok(_) => panic!("Expected Nested capture type"),
             Err(e) => panic!("Failed to parse joint: {}", e),
         }
     }
@@ -213,7 +243,7 @@ mod tests {
 
         // 错误语法: *[] 中间缺少分隔符
         let input = quote! { args*[]: Ident };
-        let result = parse_capture_spec(input, ctx);
+        let result = parse_capture(input, ctx);
 
         assert!(result.is_err());
         assert_eq!(
@@ -222,87 +252,7 @@ mod tests {
         );
     }
 
-    // --- 2. Struct 字段生成逻辑测试 (add_capture) ---
-
-    #[test]
-    fn test_add_capture_once() {
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! { field: u32 };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-
-        let capture_list: Arc<Mutex<Vec<(Ident, Type, IsOptional)>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        spec.add_capture(capture_list.clone());
-
-        let list = capture_list.lock().unwrap();
-        assert_eq!(list.len(), 1);
-        let (name, ty, is_optional) = &list[0];
-
-        assert_eq!(name.to_string(), "field");
-        assert_eq!(quote!(#ty).to_string(), "u32");
-        assert_eq!(*is_optional, false);
-    }
-
-    #[test]
-    fn test_add_capture_optional() {
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! { field?: u32 };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-
-        let capture_list = Arc::new(Mutex::new(Vec::new()));
-        spec.add_capture(capture_list.clone());
-
-        let list = capture_list.lock().unwrap();
-        let (_, ty, is_optional) = &list[0];
-
-        // 验证类型是否被包裹在 Option 中
-        assert_eq!(
-            quote!(#ty).to_string(),
-            ":: std :: option :: Option < u32 >"
-        );
-        assert_eq!(*is_optional, true);
-    }
-
-    #[test]
-    fn test_add_capture_iter() {
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! { field*[,]: u32 };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-
-        let capture_list = Arc::new(Mutex::new(Vec::new()));
-        spec.add_capture(capture_list.clone());
-
-        let list = capture_list.lock().unwrap();
-        let (_, ty, is_optional) = &list[0];
-
-        // 验证类型是否被包裹在 Punctuated 中
-        let ty_str = quote!(#ty).to_string();
-        assert!(ty_str.contains("Punctuated"));
-        assert!(ty_str.contains("u32"));
-        assert_eq!(*is_optional, false); // Iter 模式如果不带 ? 本身不视为 Optional 字段(通常是个空的Punctuated)
-    }
-
-    #[test]
-    fn test_add_capture_inline_naming() {
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! { @: u32 };
-        let spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-
-        let capture_list = Arc::new(Mutex::new(Vec::new()));
-        spec.add_capture(capture_list.clone());
-
-        let list = capture_list.lock().unwrap();
-        let (name, _, _) = &list[0];
-
-        // 验证生成的名称格式为 _<index>
-        assert!(name.to_string().starts_with("_"));
-    }
-
-    // --- 3. Lookahead 优化逻辑测试 ---
+    // --- 2. Lookahead 优化逻辑测试 ---
 
     #[test]
     fn test_inject_lookahead() {
@@ -315,18 +265,32 @@ mod tests {
         // 假设 Pattern 和 Keyword 是可访问的 (通常在同一 crate 或 test super 中)
         let input = quote!(x: Ident);
 
-        let ident_spec: CaptureSpec = parse_capture_spec(input, ctx).unwrap();
-        let pattern_capture = Pattern::Capture(ident_spec.clone(), None);
-        let pattern_literal = Pattern::Literal(Keyword::Rust(",".to_string()));
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        let pattern_capture = PatternKind::Capture(capture);
+        let pattern_literal = PatternKind::Literal(Keyword::Rust(",".to_string()));
 
         // Case 1: Capture 后面跟 Literal
-        let patterns = vec![pattern_capture.clone(), pattern_literal.clone()];
+        let patterns = vec![
+            Pattern {
+                kind: pattern_capture.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: pattern_literal.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
         let optimized = inject_lookahead(patterns);
 
         assert_eq!(optimized.len(), 2);
         // 检查第一个 Capture 是否被注入了 lookahead
-        if let Pattern::Capture(_, Some(lookahead)) = &optimized[0] {
-            if let Keyword::Rust(s) = lookahead {
+        if let PatternKind::Capture(Capture {
+            edge: Some(edge), ..
+        }) = &optimized[0].kind
+        {
+            if let Keyword::Rust(s) = edge {
                 assert_eq!(s, ",");
             } else {
                 panic!("Wrong lookahead type");
@@ -336,16 +300,32 @@ mod tests {
         }
 
         // Case 2: Capture 后面跟 Capture (不应注入)
-        let patterns_consecutive = vec![pattern_capture.clone(), pattern_capture.clone()];
+        let patterns_consecutive = vec![
+            Pattern {
+                kind: pattern_capture.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: pattern_literal.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
         let optimized_consecutive = inject_lookahead(patterns_consecutive);
-        if let Pattern::Capture(_, Some(_)) = &optimized_consecutive[0] {
+        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_consecutive[0].kind
+        {
             panic!("Should not inject lookahead when followed by another capture");
         }
 
         // Case 3: Capture 在末尾 (不应注入)
-        let patterns_end = vec![pattern_capture.clone()];
+        let patterns_end = vec![Pattern {
+            kind: pattern_capture.clone(),
+            span: Span::call_site(),
+            meta: None,
+        }];
         let optimized_end = inject_lookahead(patterns_end);
-        if let Pattern::Capture(_, Some(_)) = &optimized_end[0] {
+        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_end[0].kind {
             panic!("Should not inject lookahead at end of stream");
         }
     }
@@ -358,17 +338,17 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 只要不 Panic 且有输出即可，详细逻辑校验需要编译生成的代码
-        let spec: CaptureSpec = parse_capture_spec(quote!(x: Ident), ctx).unwrap();
-        let tokens = compiler.compile_capture_spec(&spec);
+        let capture: Capture = parse_capture(quote!(x: Ident), ctx).unwrap();
+        let tokens = compiler.compile_capture(&capture);
         assert!(!tokens.is_empty());
 
-        let spec_opt: CaptureSpec = parse_capture_spec(quote!(x?: Ident), ctx).unwrap();
-        let tokens_opt = compiler.compile_capture_spec(&spec_opt);
+        let spec_opt: Capture = parse_capture(quote!(x?: Ident), ctx).unwrap();
+        let tokens_opt = compiler.compile_capture(&spec_opt);
         // 生成的代码应该包含 Option 处理逻辑
         assert!(tokens_opt.to_string().contains("Option"));
 
-        let spec_iter: CaptureSpec = parse_capture_spec(quote!(x*[,]: Ident), ctx).unwrap();
-        let tokens_iter = compiler.compile_capture_spec(&spec_iter);
+        let spec_iter: Capture = parse_capture(quote!(x*[,]: Ident), ctx).unwrap();
+        let tokens_iter = compiler.compile_capture(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));
     }

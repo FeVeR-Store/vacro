@@ -1,38 +1,54 @@
-use std::sync::{Arc, Mutex};
-
-use proc_macro2::{Delimiter, Punct, Spacing};
-use syn::{Ident, Token, braced, bracketed, ext::IdentExt, parenthesized, token};
+use proc_macro2::{Delimiter, Punct, Spacing, TokenStream};
+use quote::TokenStreamExt;
+use syn::{Ident, Token, braced, bracketed, ext::IdentExt, parenthesized, spanned::Spanned, token};
 
 use crate::{
     ast::{
-        capture::CaptureSpec,
+        capture::Capture,
         keyword::Keyword,
-        pattern::{Pattern, PatternList},
+        node::{Pattern, PatternKind},
     },
     syntax::{context::ParseContext, keyword::parse_keyword},
 };
 
-impl PatternList {
+impl Pattern {
     pub fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut ctx = ParseContext::default();
         let mut pattern_list = vec![];
-
+        let start_span = input.span();
         while !input.is_empty() {
             let lookahead = input.lookahead1();
             if lookahead.peek(Token![#]) {
-                input.parse::<Token![#]>()?;
-                if !input.peek(token::Paren) {
-                    pattern_list.push(Pattern::Literal(Keyword::Rust(String::from("#"))));
+                if !input.peek2(token::Paren) {
+                    let _hash_tag: Keyword = Keyword::parse(input, &mut ctx)?;
+                    let start_span = _hash_tag.span();
+                    let pattern = Pattern {
+                        kind: PatternKind::Literal(_hash_tag),
+                        span: start_span,
+                        meta: None,
+                    };
+                    pattern_list.push(pattern);
                     continue;
                 }
                 let content;
                 let _paren = parenthesized!(content in input);
-                let spec = CaptureSpec::parse(&content, &mut ctx)?;
-                pattern_list.push(Pattern::Capture(spec, None));
+                let capture = Capture::parse(&content, &mut ctx)?;
+                let span = capture.span;
+                let pattern = Pattern {
+                    kind: PatternKind::Capture(capture),
+                    span,
+                    meta: None,
+                };
+                pattern_list.push(pattern);
             } else if lookahead.peek(Ident::peek_any) {
                 let id = Ident::parse_any(input)?;
                 let keyword = parse_keyword(id, &mut ctx);
-                pattern_list.push(Pattern::Literal(keyword));
+                let span = keyword.span();
+                pattern_list.push(Pattern {
+                    kind: PatternKind::Literal(keyword),
+                    span,
+                    meta: None,
+                });
             } else if lookahead.peek(token::Brace)
                 || lookahead.peek(token::Bracket)
                 || lookahead.peek(token::Paren)
@@ -51,26 +67,51 @@ impl PatternList {
                 } else {
                     return Err(syn::Error::new(input.span(), "Unexpected token"));
                 }
-                let inner: PatternList = PatternList::parse(&content)?;
-                pattern_list.push(Pattern::Group(delimiter, inner));
+                let inner: Pattern = Pattern::parse(&content)?;
+                let span = inner.span;
+                let pattern = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter,
+                        children: vec![inner],
+                    },
+                    span,
+                    meta: None,
+                };
+                pattern_list.push(pattern);
             } else {
-                let mut collect = String::new();
+                let mut collect = TokenStream::new();
                 let mut punct: Punct = input.parse()?;
+                let start_span = punct.span();
                 while punct.spacing() == Spacing::Joint {
                     if input.peek(Token![#]) {
                         break;
                     }
-                    collect.push(punct.as_char());
+                    collect.append(punct);
                     punct = input.parse()?;
                 }
-                collect.push(punct.as_char());
-                pattern_list.push(Pattern::Literal(parse_keyword(collect, &mut ctx)));
+                let end_span = punct.span();
+                collect.append(punct);
+                let keyword = parse_keyword(collect, &mut ctx);
+                let pattern = Pattern {
+                    kind: PatternKind::Literal(keyword),
+                    span: start_span.join(end_span).unwrap_or(end_span),
+                    meta: None,
+                };
+                pattern_list.push(pattern);
             }
         }
-        Ok(PatternList {
-            list: pattern_list,
-            capture_list: Arc::new(Mutex::new(vec![])),
-            parse_context: ctx,
+        let end_span = if let Some(pattern) = pattern_list.last() {
+            pattern.span
+        } else {
+            start_span
+        };
+        Ok(Pattern {
+            kind: PatternKind::Group {
+                delimiter: Delimiter::None,
+                children: pattern_list,
+            },
+            span: start_span.join(end_span).unwrap_or(start_span),
+            meta: None,
         })
     }
 }

@@ -1,38 +1,44 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Delimiter, TokenStream};
 use quote::{format_ident, quote};
 
 use crate::{
     ast::{
-        capture::{CaptureMode, CaptureSpec, CaptureType, ExposeMode},
-        pattern::PatternList,
+        capture::{Binder, Capture, MatcherKind, Quantity},
+        node::{Pattern, PatternKind},
     },
     codegen::{logic::Compiler, output::generate_output},
     transform::lookahead::inject_lookahead,
 };
 
 impl Compiler {
-    pub fn compile_capture_spec(&mut self, spec: &CaptureSpec) -> TokenStream {
+    pub fn compile_capture(&mut self, capture: &Capture) -> TokenStream {
         let mut tokens = TokenStream::new();
-        let CaptureSpec { ty, mode, name, .. } = spec;
-        let receiver = match &name {
-            ExposeMode::Named(ident) => {
+        let Capture {
+            binder,
+            matcher,
+            quantity,
+            span,
+            ..
+        } = capture;
+        let receiver = match &binder {
+            Binder::Named(ident) => {
                 quote! {#ident = }
             }
-            ExposeMode::Inline(i) => {
+            Binder::Inline(i) => {
                 let id = format_ident!("_{}", i.to_string());
                 quote! {#id = }
             }
             _ => quote! {},
         };
-        let t = match (name, mode, ty) {
-            (_, CaptureMode::Once, CaptureType::Type(ty)) => {
+        let t = match (binder, quantity, &matcher.kind) {
+            (_, Quantity::One, MatcherKind::SynType(ty)) => {
                 quote! {
                     {
                         #receiver input.parse::<#ty>()?;
                     }
                 }
             }
-            (_, CaptureMode::Optional, CaptureType::Type(ty)) => {
+            (_, Quantity::Optional, MatcherKind::SynType(ty)) => {
                 quote! {
                     {
                         let _fork = input.fork();
@@ -42,7 +48,7 @@ impl Compiler {
                     }
                 }
             }
-            (_, CaptureMode::Iter(separator), CaptureType::Type(ty)) => {
+            (_, Quantity::Many(separator), MatcherKind::SynType(ty)) => {
                 quote! {
                     {
                         #[allow(non_local_definitions)]
@@ -51,40 +57,40 @@ impl Compiler {
                     }
                 }
             }
-            (ExposeMode::Anonymous, CaptureMode::Once, CaptureType::Joint(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.list.clone());
+            (Binder::Anonymous, Quantity::One, MatcherKind::Nested(_patterns)) => {
+                let optimized_list = inject_lookahead(_patterns.clone());
 
-                let patterns = PatternList {
-                    list: optimized_list,
-                    capture_list: _patterns.capture_list.clone(),
-                    parse_context: _patterns.parse_context.clone(),
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
                 };
-                let pattern_tokens = self.compile_pattern_list(&patterns);
+                let pattern_tokens = self.compile_pattern(&patterns);
                 quote! {
                     {
                         #pattern_tokens
                     }
                 }
             }
-            (ExposeMode::Anonymous, CaptureMode::Optional, CaptureType::Joint(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.list.clone());
+            (Binder::Anonymous, Quantity::Optional, MatcherKind::Nested(_patterns)) => {
+                let optimized_list = inject_lookahead(_patterns.clone());
 
-                let patterns = PatternList {
-                    list: optimized_list,
-                    capture_list: _patterns.capture_list.clone(),
-                    parse_context: _patterns.parse_context.clone(),
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
                 };
 
-                let joint_token = self.compile_pattern_list(&patterns);
-                let (capture_init, struct_def, struct_expr) =
-                    generate_output(patterns.capture_list.clone(), None, &patterns.parse_context);
-                let fields = patterns
-                    .capture_list
-                    .lock()
-                    .unwrap()
-                    .iter()
-                    .map(|(name, ..)| name.clone())
-                    .collect::<Vec<_>>();
+                let joint_token = self.compile_pattern(&patterns);
+                let captures = patterns.collect_captures();
+                let (capture_init, struct_def, struct_expr, fields) =
+                    generate_output(&captures, None);
 
                 let assigns_err = fields.iter().map(|ident| {
                     quote! { #ident = ::std::option::Option::None; }
