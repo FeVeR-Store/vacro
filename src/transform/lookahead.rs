@@ -1,4 +1,4 @@
-use crate::ast::pattern::Pattern;
+use crate::ast::node::{Pattern, PatternKind};
 
 /// 对模式列表进行“前瞻优化”：
 /// 如果一个捕获组 (Capture) 紧跟着一个字面量 (Literal)，
@@ -9,14 +9,25 @@ pub fn inject_lookahead(patterns: Vec<Pattern>) -> Vec<Pattern> {
     let mut pending_capture: Option<Pattern> = None;
 
     for pattern in patterns {
-        match pattern {
+        match &pattern.kind {
             // 情况 A: 遇到了字面量 (例如 ",")
-            Pattern::Literal(ref keyword) => {
+            PatternKind::Literal(keyword) => {
                 // 检查缓冲区里有没有正在等待前瞻的捕获组
-                if let Some(Pattern::Capture(spec, _)) = pending_capture {
+                if let Some(Pattern {
+                    kind: PatternKind::Capture(capture),
+                    span,
+                    meta,
+                }) = pending_capture
+                {
+                    let mut optimized_capture = capture.clone();
+                    optimized_capture.edge = Some(keyword.clone());
                     // 核心逻辑：注入前瞻信息
                     // 将原来的 Capture(spec, None) 变为 Capture(spec, Some(keyword))
-                    optimized.push(Pattern::Capture(spec, Some(keyword.clone())));
+                    optimized.push(Pattern {
+                        kind: PatternKind::Capture(optimized_capture),
+                        span,
+                        meta,
+                    });
                 } else if let Some(other) = pending_capture {
                     // 防御性编程：虽然逻辑上 pending 只可能是 Capture，但如果有其他变体，原样推入
                     optimized.push(other);
@@ -30,7 +41,7 @@ pub fn inject_lookahead(patterns: Vec<Pattern>) -> Vec<Pattern> {
             }
 
             // 情况 B: 遇到了新的捕获组 (例如 #(name: Type))
-            Pattern::Capture(..) => {
+            PatternKind::Capture(..) => {
                 // 如果之前还有一个捕获组没等到字面量 (比如连续两个捕获组)
                 if let Some(prev) = pending_capture {
                     optimized.push(prev); // 前一个只能原样提交
@@ -40,13 +51,13 @@ pub fn inject_lookahead(patterns: Vec<Pattern>) -> Vec<Pattern> {
             }
 
             // 情况 C: 其他 Token (例如 Group)
-            other => {
+            _ => {
                 // 结算缓冲区
                 if let Some(prev) = pending_capture {
                     optimized.push(prev);
                 }
                 pending_capture = None;
-                optimized.push(other);
+                optimized.push(pattern);
             }
         }
     }

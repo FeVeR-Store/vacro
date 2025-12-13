@@ -1,34 +1,50 @@
-use std::sync::{Arc, Mutex};
-
-use syn::{Ident, Token, Type, bracketed, parenthesized, parse_quote, spanned::Spanned, token};
+use proc_macro2::Delimiter;
+use syn::{Ident, Token, Type, bracketed, parenthesized, spanned::Spanned, token};
 
 use crate::{
     ast::{
-        capture::{CaptureMode, CaptureSpec, CaptureType, ExposeMode},
+        capture::{Binder, Capture, Matcher, MatcherKind, Quantity},
         keyword::Keyword,
-        pattern::{Pattern, PatternList},
+        node::{Pattern, PatternKind},
     },
     syntax::context::ParseContext,
 };
 
-impl CaptureSpec {
+impl Capture {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
-        let lookahead = input.lookahead1();
-        let fork = input.fork();
+        let _hash_tag: Token![#] = input.parse()?;
+        let start_span = _hash_tag.span;
+        let content;
+        let _paren = parenthesized!(content in input);
+
+        let lookahead = content.lookahead1();
+        let fork = content.fork();
         if fork.parse::<Type>().is_ok() && fork.is_empty() {
             // 匿名捕获 <Capture> 类型
-            let ty = CaptureType::parse(input, ctx)?;
-            let mode = CaptureMode::Once;
-            Ok(CaptureSpec {
-                name: ExposeMode::Anonymous,
-                ty,
-                mode,
+            let ty: Type = content.parse()?;
+            let end_span = ty.span();
+            let matcher = Matcher {
+                kind: MatcherKind::SynType(ty),
+                span: start_span.join(end_span).unwrap_or(start_span),
+            };
+            let quantity = Quantity::One;
+            let binder = Binder::Anonymous;
+            Ok(Capture {
+                _hash_tag,
+                _paren,
+                matcher,
+                quantity,
+                binder,
+                edge: None,
+
+                span: start_span.join(end_span).unwrap_or(start_span),
             })
         } else if lookahead.peek(Ident) || lookahead.peek(Token![@]) {
+            // 具名捕获 <name: Capture> 与 行内捕获 <@: Capture> 及变体
             let i = ctx.inline_counter;
             let inline_mode = ctx.inline_mode;
-            let name: ExposeMode = if lookahead.peek(Ident) {
-                let ident: Ident = input.parse()?;
+            let binder = if lookahead.peek(Ident) {
+                let ident: Ident = content.parse()?;
                 if i != 0 {
                     return Err(syn::Error::new(
                         ident.span(),
@@ -38,9 +54,9 @@ impl CaptureSpec {
                 if !inline_mode {
                     ctx.inline_mode = false;
                 }
-                ExposeMode::Named(ident)
+                Binder::Named(ident)
             } else {
-                let _at = input.parse::<Token![@]>()?;
+                let _at = content.parse::<Token![@]>()?;
                 if inline_mode {
                     return Err(syn::Error::new(
                         _at.span(),
@@ -48,104 +64,153 @@ impl CaptureSpec {
                     ));
                 }
                 ctx.inline_counter += 1;
-                ExposeMode::Inline(i)
+                Binder::Inline(i)
             };
-            let mut mode = CaptureMode::Once;
-            if input.peek(Token![?]) {
-                mode = CaptureMode::Optional;
-                input.parse::<Token![?]>()?;
-            } else if input.peek(Token![*]) {
-                input.parse::<Token![*]>()?;
-                if input.peek(token::Bracket) {
-                    let content;
-                    let _br = bracketed!(content in input);
-                    if content.is_empty() {
-                        return Err(input.error("expected '[<separator>]' like '[,]'"));
+            let mut quantity = Quantity::One;
+            if content.peek(Token![?]) {
+                quantity = Quantity::Optional;
+                content.parse::<Token![?]>()?;
+            } else if content.peek(Token![*]) {
+                content.parse::<Token![*]>()?;
+                if content.peek(token::Bracket) {
+                    let separator_tokens;
+                    let _br = bracketed!(separator_tokens in content);
+                    if separator_tokens.is_empty() {
+                        return Err(syn::Error::new(
+                            separator_tokens.span(),
+                            "expected '[<separator>]' like '[,]'",
+                        ));
                     }
-                    let separater = Keyword::parse(&content, ctx)?;
-                    mode = CaptureMode::Iter(separater);
+                    let separater = Keyword::parse(&separator_tokens, ctx)?;
+                    quantity = Quantity::Many(Some(separater));
                 } else {
-                    return Err(input.error("expected '[<separator>]' like '[,]'"));
+                    return Err(content.error("expected '[<separator>]' like '[,]'"));
                 };
             }
-            if input.peek(Token![:]) {
-                let _colon = input.parse::<Token![:]>()?;
-                let ty: Type = input.parse()?;
-                Ok(CaptureSpec {
-                    name,
-                    ty: CaptureType::Type(ty),
-                    mode,
+            if content.peek(Token![:]) {
+                let _colon = content.parse::<Token![:]>()?;
+                let matcher = Matcher::parse(&content, ctx)?;
+                let end_span = matcher.span;
+                Ok(Capture {
+                    _hash_tag,
+                    _paren,
+                    binder,
+                    matcher,
+                    quantity,
+                    edge: None,
+                    span: start_span.join(end_span).unwrap_or(start_span),
                 })
             } else {
-                Err(input.error("expected ':' after capture name"))
+                Err(content.error("expected ':' after capture name"))
             }
         } else {
-            let mut mode = CaptureMode::Once;
-            if input.peek(Token![?]) {
-                mode = CaptureMode::Optional;
-                input.parse::<Token![?]>()?;
-            } else if input.peek(Token![*]) {
-                input.parse::<Token![*]>()?;
-                if input.peek(token::Bracket) {
-                    let content;
-                    let _br = bracketed!(content in input);
-                    if content.is_empty() {
-                        return Err(input.error("expected '[<separator>]' like '[,]'"));
+            let mut quantity = Quantity::One;
+            if content.peek(Token![?]) {
+                quantity = Quantity::Optional;
+                content.parse::<Token![?]>()?;
+            } else if content.peek(Token![*]) {
+                content.parse::<Token![*]>()?;
+                if content.peek(token::Bracket) {
+                    let separater_tokens;
+                    let _br = bracketed!(separater_tokens in content);
+                    if separater_tokens.is_empty() {
+                        return Err(separater_tokens.error("expected '[<separator>]' like '[,]'"));
                     }
-                    let separater = Keyword::parse(&content, ctx)?;
-                    mode = CaptureMode::Iter(separater);
+                    let separater = Keyword::parse(&separater_tokens, ctx)?;
+                    quantity = Quantity::Many(Some(separater));
                 } else {
-                    return Err(input.error("expected '[<separator>]' like '[,]'"));
+                    return Err(content.error("expected '[<separator>]' like '[,]'"));
                 };
             }
-            let _colon = input.parse::<Token![:]>()?;
-            let ty = CaptureType::parse(input, ctx)?;
-            Ok(CaptureSpec {
-                name: ExposeMode::Anonymous,
-                ty,
-                mode,
+            let _colon = content.parse::<Token![:]>()?;
+            let matcher = Matcher::parse(&content, ctx)?;
+            let end_span = matcher.span;
+            Ok(Capture {
+                _hash_tag,
+                _paren,
+                quantity,
+                matcher,
+                binder: Binder::Anonymous,
+                edge: None,
+                span: start_span.join(end_span).unwrap_or(start_span),
             })
         }
     }
 }
 
-impl CaptureType {
+impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
-            input.parse::<Token![#]>()?;
-            if !input.peek(token::Paren) {
-                let mut pattern_list = PatternList::parse(input)?;
-                pattern_list
-                    .list
-                    .insert(0, Pattern::Literal(Keyword::Rust(String::from("#"))));
-                return Ok(Self::Joint(pattern_list));
+            if !input.peek2(token::Paren) {
+                let _hash_tag = input.parse::<Token![#]>()?;
+                let start_span = _hash_tag.span;
+                let pattern: Pattern = Pattern::parse(input)?;
+                let end_span = pattern.span;
+                let hash_tag_pattern = Pattern {
+                    kind: PatternKind::Literal(Keyword::Rust(String::from("#"))),
+                    span: _hash_tag.span,
+                    meta: None,
+                };
+                let matcher = Matcher {
+                    kind: MatcherKind::Nested(vec![hash_tag_pattern, pattern]),
+                    span: start_span.join(end_span).unwrap_or(start_span),
+                };
+                return Ok(matcher);
             }
-            let content;
-            let _paren = parenthesized!(content in input);
-            let spec = CaptureSpec::parse(&content, ctx)?;
-
-            Self::Joint(PatternList {
-                list: vec![Pattern::Capture(spec, None)],
-                capture_list: Arc::new(Mutex::new(vec![])),
-                parse_context: ParseContext::default(),
-            })
+            let capture = Capture::parse(&input, ctx)?;
+            let span = capture.span;
+            let pattern = Pattern {
+                kind: PatternKind::Capture(capture),
+                span,
+                meta: None,
+            };
+            Matcher {
+                kind: MatcherKind::Nested(vec![pattern]),
+                span,
+            }
         } else if input.peek(Ident) {
-            let ident: Type = input.parse()?;
-            Self::Type(parse_quote!(#ident))
+            let ty: Type = input.parse()?;
+            let span = ty.span();
+            Matcher {
+                kind: MatcherKind::SynType(ty),
+                span,
+            }
         } else {
-            let pattern_list = PatternList::parse(input)?;
-            Self::Joint(pattern_list)
+            let pattern: Pattern = Pattern::parse(input)?;
+            let span = pattern.span;
+            // 对于单一的空组，进行拆包，减少一层嵌套
+            if let PatternKind::Group {
+                delimiter: Delimiter::None,
+                children,
+            } = pattern.kind
+            {
+                Matcher {
+                    kind: MatcherKind::Nested(children),
+                    span,
+                }
+            } else {
+                Matcher {
+                    kind: MatcherKind::Nested(vec![pattern]),
+                    span,
+                }
+            }
         };
         if !input.is_empty() {
-            match cap {
-                CaptureType::Type(_) => Err(syn::Error::new(
+            let start_span = cap.span;
+            match cap.kind {
+                MatcherKind::SynType(_) => Err(syn::Error::new(
                     input.span(),
                     format!("Unexpected '{}'", input.to_string()),
                 )),
-                CaptureType::Joint(mut joint) => {
-                    let pattern_list = PatternList::parse(input)?;
-                    joint.list.extend(pattern_list.list);
-                    Ok(Self::Joint(joint))
+                MatcherKind::Nested(mut pattern_list) => {
+                    let pattern: Pattern = Pattern::parse(input)?;
+                    let end_span = pattern.span;
+                    pattern_list.push(pattern);
+                    let matcher = Matcher {
+                        kind: MatcherKind::Nested(pattern_list),
+                        span: start_span.join(end_span).unwrap_or(start_span),
+                    };
+                    Ok(matcher)
                 }
             }
         } else {
