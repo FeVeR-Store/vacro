@@ -212,6 +212,7 @@ impl Matcher {
                     };
                     Ok(matcher)
                 }
+                MatcherKind::Enum { .. } => todo!(),
             }
         } else {
             Ok(cap)
