@@ -12,7 +12,6 @@ use crate::{
 
 impl Capture {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
-        dbg!(input.to_string());
         let _hash_tag: Token![#] = input.parse()?;
         let start_span = _hash_tag.span;
         let content;
@@ -158,7 +157,7 @@ impl Matcher {
                 };
                 return Ok(matcher);
             }
-            let capture = Capture::parse(dbg!(&input), ctx)?;
+            let capture = Capture::parse(&input, ctx)?;
             let span = capture.span;
             let pattern = Pattern {
                 kind: PatternKind::Capture(capture),

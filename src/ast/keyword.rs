@@ -288,12 +288,10 @@ mod tests {
                 let mut collect = String::new();
                 let mut punct: Punct = input.parse()?;
                 while !input.is_empty() {
-                    println!("{}", punct.to_string());
                     if input.peek(Token![#]) {
                         break;
                     }
                     collect.push(punct.as_char());
-                    println!("{}", input.to_string());
                     punct = input.parse()?;
                 }
                 collect.push(punct.as_char());

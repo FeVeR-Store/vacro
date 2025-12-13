@@ -214,7 +214,7 @@ mod tests {
         let input = quote! { #(?: -> #( name: Ident )) };
         let result = parse_capture_matcher(input, ctx);
 
-        match dbg!(result) {
+        match result {
             Ok(Matcher {
                 kind: MatcherKind::Nested(pattern_list),
                 ..
