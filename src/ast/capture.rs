@@ -136,7 +136,7 @@ mod tests {
     fn test_parse_basic_named() {
         let ctx = &mut ParseContext::default();
         // 语法: name: Type
-        let input = quote! { my_field: syn::Ident };
+        let input = quote! { #(my_field: syn::Ident) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "my_field");
         assert!(matches!(capture.quantity, Quantity::One));
@@ -147,7 +147,7 @@ mod tests {
     fn test_parse_optional_named() {
         let ctx = &mut ParseContext::default();
         // 语法: name?: Type
-        let input = quote! { maybe_val?: u32 };
+        let input = quote! { #(maybe_val?: u32) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "maybe_val");
         assert!(matches!(capture.quantity, Quantity::Optional));
@@ -158,7 +158,7 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 语法: name*[,]: Type
-        let input = quote! { list*[,]: Ident };
+        let input = quote! { #(list*[,]: Ident) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "list");
         if let Quantity::Many(sep) = &capture.quantity {
@@ -177,13 +177,12 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 语法: @: Type, @?: Type, @*[;]: Type
-        // 注意：原子计数器 ITER 会在测试间共享，所以不校验具体的 Index 值
-        let input1 = quote! { @: Ident };
+        let input1 = quote! { #(@: Ident) };
         let spec1: Capture = parse_capture(input1, ctx).unwrap();
         assert_inline(&spec1);
         assert!(matches!(spec1.quantity, Quantity::One));
 
-        let input2 = quote! { @?: Ident };
+        let input2 = quote! { #(@?: Ident) };
         let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_inline(&spec2);
         assert!(matches!(spec2.quantity, Quantity::Optional));
@@ -194,13 +193,13 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 语法: Type (无名称)
-        let input = quote! { syn::Type };
+        let input = quote! { #(syn::Type) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_anonymous(&capture);
         assert!(matches!(capture.quantity, Quantity::One));
 
         // 语法: ?: Type
-        let input2 = quote! { ?: syn::Visibility };
+        let input2 = quote! { #(?: syn::Visibility) };
         let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_anonymous(&spec2);
         assert!(matches!(spec2.quantity, Quantity::Optional));
@@ -212,24 +211,31 @@ mod tests {
 
         // 语法: #( ... )
         // 模拟 Nested 解析，注意这里依赖 pattern 模块的解析逻辑，假设 pattern 也能 parse
-        let input = quote! { ?: -> #( name: Ident ) };
+        let input = quote! { #(?: -> #( name: Ident )) };
         let result = parse_capture_matcher(input, ctx);
 
-        // 注意：由于 MatcherKind::parse 对于 # 的处理比较特殊，
-        // 这里主要测试它能识别 # 并返回 Nested 变体
-        match result {
+        match dbg!(result) {
             Ok(Matcher {
                 kind: MatcherKind::Nested(pattern_list),
                 ..
             }) => {
-                // Nested 模式下，列表第一个元素应该是字面量 "#"
                 assert!(!pattern_list.is_empty());
-                #[allow(unused)]
-                let _keyword = Keyword::Rust(String::from("->"));
-                if let PatternKind::Literal(kw) = &pattern_list[0].kind {
-                    assert!(matches!(kw, _keyword));
+                // 捕获的内容应该是：
+                // [可选捕获( -> 具名捕获(name: Ident))]
+                if let PatternKind::Capture(cap) = &pattern_list[0].kind {
+                    // 可选
+                    assert!(matches!(cap.quantity, Quantity::Optional));
+                    match &cap.matcher.kind {
+                        MatcherKind::Nested(nest) => {
+                            let _keyword = Keyword::Rust("->".to_string());
+                            assert!(matches!(&nest[0].kind, PatternKind::Literal(_keyword)));
+                            let _capture = parse_capture(quote! {#(name: Ident)}, ctx);
+                            assert!(matches!(&nest[1].kind, PatternKind::Capture(_capture)))
+                        }
+                        _ => panic!("Capture matcher should be -> literal"),
+                    }
                 } else {
-                    panic!("First element of Nested should be # literal");
+                    panic!("First element of patterns should be Capture");
                 }
             }
             Ok(_) => panic!("Expected Nested capture type"),
@@ -242,7 +248,7 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 错误语法: *[] 中间缺少分隔符
-        let input = quote! { args*[]: Ident };
+        let input = quote! { #(args*[]: Ident) };
         let result = parse_capture(input, ctx);
 
         assert!(result.is_err());
@@ -263,7 +269,7 @@ mod tests {
 
         // Mock数据构造：为了测试私有函数，我们需要构造 Pattern
         // 假设 Pattern 和 Keyword 是可访问的 (通常在同一 crate 或 test super 中)
-        let input = quote!(x: Ident);
+        let input = quote!(#(x: Ident));
 
         let capture: Capture = parse_capture(input, ctx).unwrap();
         let pattern_capture = PatternKind::Capture(capture);
@@ -307,7 +313,7 @@ mod tests {
                 meta: None,
             },
             Pattern {
-                kind: pattern_literal.clone(),
+                kind: pattern_capture.clone(),
                 span: Span::call_site(),
                 meta: None,
             },
@@ -338,16 +344,16 @@ mod tests {
         let ctx = &mut ParseContext::default();
 
         // 只要不 Panic 且有输出即可，详细逻辑校验需要编译生成的代码
-        let capture: Capture = parse_capture(quote!(x: Ident), ctx).unwrap();
+        let capture: Capture = parse_capture(quote!(#(x: Ident)), ctx).unwrap();
         let tokens = compiler.compile_capture(&capture);
         assert!(!tokens.is_empty());
 
-        let spec_opt: Capture = parse_capture(quote!(x?: Ident), ctx).unwrap();
+        let spec_opt: Capture = parse_capture(quote!(#(x?: Ident)), ctx).unwrap();
         let tokens_opt = compiler.compile_capture(&spec_opt);
         // 生成的代码应该包含 Option 处理逻辑
         assert!(tokens_opt.to_string().contains("Option"));
 
-        let spec_iter: Capture = parse_capture(quote!(x*[,]: Ident), ctx).unwrap();
+        let spec_iter: Capture = parse_capture(quote!(#(x*[,]: Ident)), ctx).unwrap();
         let tokens_iter = compiler.compile_capture(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));

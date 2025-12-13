@@ -1,3 +1,4 @@
+use proc_macro2::Delimiter;
 use syn::{Ident, Token, Type, bracketed, parenthesized, spanned::Spanned, token};
 
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
 
 impl Capture {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
+        dbg!(input.to_string());
         let _hash_tag: Token![#] = input.parse()?;
         let start_span = _hash_tag.span;
         let content;
@@ -20,7 +22,7 @@ impl Capture {
         let fork = content.fork();
         if fork.parse::<Type>().is_ok() && fork.is_empty() {
             // 匿名捕获 <Capture> 类型
-            let ty: Type = input.parse()?;
+            let ty: Type = content.parse()?;
             let end_span = ty.span();
             let matcher = Matcher {
                 kind: MatcherKind::SynType(ty),
@@ -39,6 +41,7 @@ impl Capture {
                 span: start_span.join(end_span).unwrap_or(start_span),
             })
         } else if lookahead.peek(Ident) || lookahead.peek(Token![@]) {
+            // 具名捕获 <name: Capture> 与 行内捕获 <@: Capture> 及变体
             let i = ctx.inline_counter;
             let inline_mode = ctx.inline_mode;
             let binder = if lookahead.peek(Ident) {
@@ -74,7 +77,10 @@ impl Capture {
                     let separator_tokens;
                     let _br = bracketed!(separator_tokens in content);
                     if separator_tokens.is_empty() {
-                        return Err(separator_tokens.error("expected '[<separator>]' like '[,]'"));
+                        return Err(syn::Error::new(
+                            separator_tokens.span(),
+                            "expected '[<separator>]' like '[,]'",
+                        ));
                     }
                     let separater = Keyword::parse(&separator_tokens, ctx)?;
                     quantity = Quantity::Many(Some(separater));
@@ -152,7 +158,7 @@ impl Matcher {
                 };
                 return Ok(matcher);
             }
-            let capture = Capture::parse(&input, ctx)?;
+            let capture = Capture::parse(dbg!(&input), ctx)?;
             let span = capture.span;
             let pattern = Pattern {
                 kind: PatternKind::Capture(capture),
@@ -173,9 +179,21 @@ impl Matcher {
         } else {
             let pattern: Pattern = Pattern::parse(input)?;
             let span = pattern.span;
-            Matcher {
-                kind: MatcherKind::Nested(vec![pattern]),
-                span,
+            // 对于单一的空组，进行拆包，减少一层嵌套
+            if let PatternKind::Group {
+                delimiter: Delimiter::None,
+                children,
+            } = pattern.kind
+            {
+                Matcher {
+                    kind: MatcherKind::Nested(children),
+                    span,
+                }
+            } else {
+                Matcher {
+                    kind: MatcherKind::Nested(vec![pattern]),
+                    span,
+                }
             }
         };
         if !input.is_empty() {

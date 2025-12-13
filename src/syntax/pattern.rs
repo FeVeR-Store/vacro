@@ -1,6 +1,13 @@
-use proc_macro2::{Delimiter, Punct, Spacing, TokenStream};
+use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenStream, TokenTree};
 use quote::TokenStreamExt;
-use syn::{Ident, Token, braced, bracketed, ext::IdentExt, parenthesized, spanned::Spanned, token};
+use syn::{
+    Ident, Result, Token, braced, bracketed,
+    ext::IdentExt,
+    parenthesized,
+    parse::{ParseStream, Parser},
+    spanned::Spanned,
+    token,
+};
 
 use crate::{
     ast::{
@@ -30,9 +37,24 @@ impl Pattern {
                     pattern_list.push(pattern);
                     continue;
                 }
+                let _hash_tag = input.parse::<Token![#]>()?;
                 let content;
                 let _paren = parenthesized!(content in input);
-                let capture = Capture::parse(&content, &mut ctx)?;
+                let inner: TokenStream = content.parse()?;
+
+                let mut content = TokenStream::new();
+                let mut hash_punct = Punct::new('#', Spacing::Alone);
+                hash_punct.set_span(_hash_tag.span);
+
+                let mut group = Group::new(Delimiter::Parenthesis, inner);
+                group.set_span(_paren.span.span());
+
+                content.extend([TokenTree::Punct(hash_punct), TokenTree::Group(group)]);
+
+                let parser = |content: ParseStream| -> Result<Capture> {
+                    Capture::parse(&content, &mut ctx)
+                };
+                let capture = parser.parse2(content)?;
                 let span = capture.span;
                 let pattern = Pattern {
                     kind: PatternKind::Capture(capture),
