@@ -20,7 +20,8 @@ impl Compiler {
 
         tokens.extend(quote! {
             {
-                trait _Parse: ::syn::parse::Parse {}
+                use ::syn::parse::Parse;
+                trait _Parse: Parse {}
                 #capture_init
                 #struct_def
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
@@ -28,7 +29,7 @@ impl Compiler {
                     #patterns_tokens
                     ::std::result::Result::Ok(#struct_expr)
                 };
-                ::syn::parse::Parser::parse2(parser, #input)
+                ::syn::parse::Parser::parse2(parser, #input.into())
             }
         });
         tokens

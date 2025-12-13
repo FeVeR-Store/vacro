@@ -110,7 +110,7 @@ impl Compiler {
                         ::std::result::Result::Ok(output) => {
                             #(#assigns_ok)*
                         }
-                        ::std::result::Result::Err(err) => {
+                        ::std::result::Result::Err(_) => {
                             #(#assigns_err)*
                         }
                     }

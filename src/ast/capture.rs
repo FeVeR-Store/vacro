@@ -45,6 +45,12 @@ pub enum MatcherKind {
 
     /// 嵌套结构 (e.g. `#( ... )`)
     Nested(Vec<Pattern>),
+
+    /// 枚举结构 (e.g. `EnumName { Type1, Type2 }`)
+    Enum {
+        enum_name: Ident,
+        variants: Vec<Matcher>,
+    },
 }
 
 /// 数量限定
@@ -90,7 +96,8 @@ impl Capture {
             MatcherKind::Nested(children) => {
                 // 处理嵌套节点：递归收集所有子 Pattern 的字段
                 children.iter().flat_map(|p| p.collect_captures()).collect()
-            } // Matcher::Enum 以后再说
+            }
+            MatcherKind::Enum { .. } => todo!(),
         };
 
         // 2. 根据当前的 Quantity 对字段类型进行“包装” (Type Wrapping)
