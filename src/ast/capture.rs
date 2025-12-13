@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use syn::{Token, token};
+use syn::{Ident, Token, Type, token};
 
 use crate::ast::{keyword::Keyword, node::Pattern};
 
@@ -56,22 +56,83 @@ pub enum Quantity {
     Many(Option<Keyword>), // * 或 *[,]
 }
 
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+pub struct FieldDef {
+    pub name: Ident,
+    pub ty: Type,
+    pub is_optional: bool, // 标记是否已被 Option 包裹
+    pub is_inline: bool,
+}
+
 impl Capture {
-    pub fn collect_captures(&self) -> Vec<&Capture> {
-        let mut collector = vec![];
-        self.visit_captures(&mut collector);
-        collector
-    }
-    pub fn visit_captures<'a>(&'a self, collector: &mut Vec<&'a Capture>) {
-        // 核心分支：看 Matcher 是什么类型
-        match &self.matcher.kind {
-            MatcherKind::Nested(children) => {
-                for child in children {
-                    child.visit_captures(collector);
+    pub fn collect_captures(&self) -> Vec<FieldDef> {
+        // 1. 先收集原始字段 (Base Fields)
+        let mut fields = match &self.matcher.kind {
+            MatcherKind::SynType(ty) => {
+                // 处理叶子节点：只有 Named 和 Inline 产生字段
+                match &self.binder {
+                    Binder::Named(ident) => vec![FieldDef {
+                        name: ident.clone(),
+                        ty: ty.clone(),
+                        is_optional: false, // 初始状态
+                        is_inline: false,
+                    }],
+                    Binder::Inline(idx) => vec![FieldDef {
+                        name: quote::format_ident!("_{}", idx),
+                        ty: ty.clone(),
+                        is_optional: false,
+                        is_inline: true,
+                    }],
+                    Binder::Anonymous => vec![], // _: Type 不产生字段
                 }
             }
-            MatcherKind::SynType(_) => {
-                collector.push(self);
+            MatcherKind::Nested(children) => {
+                // 处理嵌套节点：递归收集所有子 Pattern 的字段
+                children.iter().flat_map(|p| p.collect_captures()).collect()
+            } // Matcher::Enum 以后再说
+        };
+
+        // 2. 根据当前的 Quantity 对字段类型进行“包装” (Type Wrapping)
+        // 这就是解决 #(?: #(ret: Type)) 问题的关键
+        self.apply_quantity_wrapping(&mut fields);
+
+        fields
+    }
+
+    fn apply_quantity_wrapping(&self, fields: &mut Vec<FieldDef>) {
+        if fields.is_empty() {
+            return;
+        }
+
+        match &self.quantity {
+            Quantity::One => {
+                // 默认情况，不做改变
+            }
+            Quantity::Optional => {
+                // 对应 ?: 或 ?
+                for field in fields {
+                    // 避免双重 Option (可选的优化)
+                    if !field.is_optional {
+                        let ty = &field.ty;
+                        field.ty = syn::parse_quote!(::std::option::Option<#ty>);
+                        field.is_optional = true;
+                    }
+                }
+            }
+            Quantity::Many(sep) => {
+                // 对应 * 或 *[,]
+                for field in fields {
+                    let ty = &field.ty;
+                    // Punctuated 本身就是容器，通常不需要再标 is_optional
+                    if let Some(s) = sep {
+                        field.ty = syn::parse_quote!(::syn::punctuated::Punctuated<#ty, #s>);
+                    } else {
+                        field.ty = syn::parse_quote!(::std::vec::Vec<#ty>);
+                    }
+                    // Many 模式下，字段通常初始化为空集合，所以不算 Optional (Option::None)
+                    field.is_optional = false;
+                }
             }
         }
     }

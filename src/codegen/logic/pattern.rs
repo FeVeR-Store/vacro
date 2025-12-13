@@ -37,6 +37,11 @@ impl Compiler {
 
                 let mut pattern_token = TokenStream::new();
                 pattern_token.extend(children.iter().map(|pattern| self.compile_pattern(pattern)));
+
+                if matches!(delimiter, Delimiter::None) {
+                    tokens.extend(pattern_token);
+                    return tokens;
+                }
                 let captures = pattern.collect_captures();
                 let (capture_init, struct_def, struct_expr, ..) = generate_output(&captures, None);
 
