@@ -1,9 +1,10 @@
 use proc_macro2::{Delimiter, TokenStream};
 use quote::{format_ident, quote};
+use syn::{Token, parse_quote, punctuated::Punctuated, token::Comma};
 
 use crate::{
     ast::{
-        capture::{Binder, Capture, MatcherKind, Quantity},
+        capture::{Binder, Capture, EnumVariant, FieldDef, Matcher, MatcherKind, Quantity},
         node::{Pattern, PatternKind},
     },
     codegen::{logic::Compiler, output::generate_output},
@@ -31,14 +32,16 @@ impl Compiler {
             _ => quote! {},
         };
         let t = match (binder, quantity, &matcher.kind) {
-            (_, Quantity::One, MatcherKind::SynType(ty)) => {
+            (_, Quantity::One, MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
+                let ty = self.compile_matcher(matcher);
                 quote! {
                     {
                         #receiver input.parse::<#ty>()?;
                     }
                 }
             }
-            (_, Quantity::Optional, MatcherKind::SynType(ty)) => {
+            (_, Quantity::Optional, MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
+                let ty = self.compile_matcher(matcher);
                 quote! {
                     {
                         let _fork = input.fork();
@@ -48,7 +51,8 @@ impl Compiler {
                     }
                 }
             }
-            (_, Quantity::Many(separator), MatcherKind::SynType(ty)) => {
+            (_, Quantity::Many(separator), MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
+                let ty = self.compile_matcher(matcher);
                 quote! {
                     {
                         #[allow(non_local_definitions)]
@@ -121,5 +125,119 @@ impl Compiler {
         };
         tokens.extend(t);
         tokens
+    }
+    fn compile_matcher(&mut self, matcher: &Matcher) -> TokenStream {
+        match &matcher.kind {
+            MatcherKind::Enum {
+                enum_name,
+                variants,
+            } => {
+                let variants_struct: Punctuated<TokenStream, Token![,]> = variants
+                    .iter()
+                    .map(|(v, _)| match v {
+                        EnumVariant::Capture {
+                            ident,
+                            named,
+                            fields,
+                            ..
+                        } => {
+                            let body = if *named {
+                                let fields: Punctuated<_, Comma> = fields
+                                    .iter()
+                                    .map(|FieldDef { name, ty, .. }| quote! {#name: #ty})
+                                    .collect();
+                                quote! {
+                                    {
+                                        #fields
+                                    }
+                                }
+                            } else {
+                                let fields: Punctuated<_, Comma> =
+                                    fields.iter().map(|FieldDef { ty, .. }| ty).collect();
+                                quote! {
+                                    (#fields)
+                                }
+                            };
+                            quote! { #ident #body }
+                        }
+                        EnumVariant::Type { ident, ty } => {
+                            quote! {#ident(#ty)}
+                        }
+                    })
+                    .collect();
+                let enum_def = parse_quote! {
+                    pub enum #enum_name {
+                        #variants_struct
+                    }
+                };
+
+                let parser = variants.iter().map(|(v, ..)| {
+                    match v {
+                        EnumVariant::Type { ident, ty } => {
+                            quote! {
+                                let _fork = input.fork();
+                                if let ::std::result::Result::Ok(v) = _fork.parse::<#ty>() {
+                                    ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                                    return ::std::result::Result::Ok(#enum_name::#ident(v));
+                                };
+                            }
+                        }
+                        EnumVariant::Capture {
+                            ident,
+                            fields,
+                            pattern,
+                            named,
+                            ..
+                        } => {
+                            let (capture_init, _, _, capture_list) =
+                                generate_output(&fields, None);
+                            let pattern_tokens = self.compile_pattern(pattern);
+                            let enum_expr_body = capture_list.iter().collect::<Punctuated<_,Token![,]>>();
+                            let enum_expr = if *named { quote! {{#enum_expr_body}}} else {quote! {(#enum_expr_body)}};
+                            quote! {
+                                let _fork = input.fork();
+                                let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<#enum_name> {
+                                    #capture_init
+                                    #pattern_tokens
+                                    return ::std::result::Result::Ok(#enum_name::#ident #enum_expr);
+                                };
+                                if let ::std::result::Result::Ok(v) = parser(&_fork) {
+                                    ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                                    return ::std::result::Result::Ok(v);
+                                };
+                            }
+                        }
+                    }
+                });
+                let err = variants
+                    .iter()
+                    .map(|(v, _)| match v {
+                        EnumVariant::Type { ty, .. } => {
+                            quote! {#ty}
+                        }
+                        EnumVariant::Capture { .. } => {
+                            quote! {pattern(not impl)}
+                        }
+                    })
+                    .collect::<Punctuated<TokenStream, Token![,]>>();
+                let err_tokens = quote! {
+                    ::std::result::Result::Err(::syn::Error::new(input.span(), stringify!(Expected one of: #err)))
+                };
+
+                let parse_impl = parse_quote! {
+                    impl ::syn::parse::Parse for #enum_name {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                            #(#parser)*
+                            #err_tokens
+                        }
+                    }
+                };
+                self.definition = vec![enum_def, parse_impl];
+
+                quote!(#enum_name)
+            }
+            MatcherKind::SynType(ty) => quote!(#ty),
+            MatcherKind::Nested(_) => quote! {},
+        }
     }
 }

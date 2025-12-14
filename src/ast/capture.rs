@@ -1,5 +1,8 @@
 use proc_macro2::Span;
-use syn::{Ident, Token, Type, token};
+use syn::{
+    Ident, Token, Type,
+    token::{self},
+};
 
 use crate::ast::{keyword::Keyword, node::Pattern};
 
@@ -48,8 +51,24 @@ pub enum MatcherKind {
 
     /// 枚举结构 (e.g. `EnumName { Type1, Type2 }`)
     Enum {
-        enum_name: Ident,
-        variants: Vec<Matcher>,
+        enum_name: Type,
+        variants: Vec<(EnumVariant, Matcher)>,
+    },
+}
+
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+pub enum EnumVariant {
+    Type {
+        ident: Type,
+        /// 实际是标识符（已判断），解析为Type仅易于开发
+        ty: Type,
+    },
+    Capture {
+        ident: Type,
+        named: bool,
+        fields: Vec<FieldDef>,
+        pattern: Pattern,
     },
 }
 
@@ -74,32 +93,7 @@ pub struct FieldDef {
 impl Capture {
     pub fn collect_captures(&self) -> Vec<FieldDef> {
         // 1. 先收集原始字段 (Base Fields)
-        let mut fields = match &self.matcher.kind {
-            MatcherKind::SynType(ty) => {
-                // 处理叶子节点：只有 Named 和 Inline 产生字段
-                match &self.binder {
-                    Binder::Named(ident) => vec![FieldDef {
-                        name: ident.clone(),
-                        ty: ty.clone(),
-                        is_optional: false, // 初始状态
-                        is_inline: false,
-                    }],
-                    Binder::Inline(idx) => vec![FieldDef {
-                        name: quote::format_ident!("_{}", idx),
-                        ty: ty.clone(),
-                        is_optional: false,
-                        is_inline: true,
-                    }],
-                    Binder::Anonymous => vec![], // _: Type 不产生字段
-                }
-            }
-            MatcherKind::Nested(children) => {
-                // 处理嵌套节点：递归收集所有子 Pattern 的字段
-                children.iter().flat_map(|p| p.collect_captures()).collect()
-            }
-            MatcherKind::Enum { .. } => todo!(),
-        };
-
+        let mut fields = self.matcher.collect_captures(&self.binder);
         // 2. 根据当前的 Quantity 对字段类型进行“包装” (Type Wrapping)
         // 这就是解决 #(?: #(ret: Type)) 问题的关键
         self.apply_quantity_wrapping(&mut fields);
@@ -142,6 +136,42 @@ impl Capture {
                 }
             }
         }
+    }
+}
+
+impl Matcher {
+    fn collect_captures(&self, binder: &Binder) -> Vec<FieldDef> {
+        match &self.kind {
+            MatcherKind::SynType(ty) | MatcherKind::Enum { enum_name: ty, .. } => {
+                generate_captures(ty, &binder)
+                    .map(|def| vec![def])
+                    .unwrap_or(vec![])
+                // 处理叶子节点：只有 Named 和 Inline 产生字段
+            }
+
+            MatcherKind::Nested(children) => {
+                // 处理嵌套节点：递归收集所有子 Pattern 的字段
+                children.iter().flat_map(|p| p.collect_captures()).collect()
+            }
+        }
+    }
+}
+
+fn generate_captures(ty: &Type, binder: &Binder) -> Option<FieldDef> {
+    match binder {
+        Binder::Named(ident) => Some(FieldDef {
+            name: ident.clone(),
+            ty: ty.clone(),
+            is_optional: false, // 初始状态
+            is_inline: false,
+        }),
+        Binder::Inline(idx) => Some(FieldDef {
+            name: quote::format_ident!("_{}", idx),
+            ty: ty.clone(),
+            is_optional: false,
+            is_inline: true,
+        }),
+        Binder::Anonymous => None, // _: Type 不产生字段
     }
 }
 

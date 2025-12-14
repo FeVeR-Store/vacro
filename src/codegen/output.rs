@@ -3,10 +3,16 @@ use quote::{format_ident, quote};
 use syn::Ident;
 
 use crate::ast::capture::FieldDef;
+
+type CaptureInit = TokenStream;
+type StructDef = TokenStream;
+type StructExpr = TokenStream;
+type CaptureList = Vec<Ident>;
+
 pub fn generate_output(
     capture_list: &[FieldDef],
     ident: Option<Ident>,
-) -> (TokenStream, TokenStream, TokenStream, Vec<Ident>) {
+) -> (CaptureInit, StructDef, StructExpr, CaptureList) {
     let ident = ident.unwrap_or_else(|| format_ident!("Output"));
     let mut capture_init = TokenStream::new();
 

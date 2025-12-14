@@ -1,15 +1,22 @@
 use proc_macro2::Delimiter;
-use syn::{Ident, Token, Type, bracketed, parenthesized, spanned::Spanned, token};
+use syn::{
+    Ident, Token, Type, braced, bracketed, parenthesized,
+    parse::{Parse, discouraged::Speculative},
+    parse_quote,
+    spanned::Spanned,
+    token,
+};
 
 use crate::{
     ast::{
-        capture::{Binder, Capture, Matcher, MatcherKind, Quantity},
+        capture::{Binder, Capture, EnumVariant, Matcher, MatcherKind, Quantity},
         keyword::Keyword,
         node::{Pattern, PatternKind},
     },
     syntax::context::ParseContext,
 };
 
+/// 捕获 #(...)
 impl Capture {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let _hash_tag: Token![#] = input.parse()?;
@@ -169,6 +176,46 @@ impl Matcher {
                 span,
             }
         } else if input.peek(Ident) {
+            if input.peek2(token::Brace) {
+                let enum_name: Type = input.parse()?;
+                let start_span = enum_name.span();
+
+                let inner;
+                let _brace = braced!(inner in input);
+                let variants = inner.parse_terminated(EnumVariant::parse, Token![,])?;
+
+                let span = if let Some(v) = variants.last() {
+                    start_span.join(v.span()).unwrap_or(start_span)
+                } else {
+                    start_span
+                };
+                let variants = variants
+                    .iter()
+                    .map(|v| {
+                        (
+                            v.clone(),
+                            Matcher {
+                                span: v.span(),
+                                kind: match &v {
+                                    EnumVariant::Type { ty, .. } => {
+                                        MatcherKind::SynType(ty.clone())
+                                    }
+                                    EnumVariant::Capture { pattern, .. } => {
+                                        MatcherKind::Nested(vec![pattern.clone()])
+                                    }
+                                },
+                            },
+                        )
+                    })
+                    .collect();
+                return Ok(Matcher {
+                    kind: MatcherKind::Enum {
+                        enum_name,
+                        variants,
+                    },
+                    span,
+                });
+            }
             let ty: Type = input.parse()?;
             let span = ty.span();
             Matcher {
@@ -198,7 +245,7 @@ impl Matcher {
         if !input.is_empty() {
             let start_span = cap.span;
             match cap.kind {
-                MatcherKind::SynType(_) => Err(syn::Error::new(
+                MatcherKind::SynType(_) | MatcherKind::Enum { .. } => Err(syn::Error::new(
                     input.span(),
                     format!("Unexpected '{}'", input.to_string()),
                 )),
@@ -212,10 +259,54 @@ impl Matcher {
                     };
                     Ok(matcher)
                 }
-                MatcherKind::Enum { .. } => todo!(),
             }
         } else {
             Ok(cap)
+        }
+    }
+}
+
+impl Parse for EnumVariant {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        // 需要支持 Type, TypeName: Type, Pattern
+        let ident: Ident = input.parse()?;
+        let ident: Type = parse_quote!(#ident);
+        if input.is_empty() {
+            return Ok(EnumVariant::Type {
+                ident: ident.clone(),
+                ty: ident,
+            });
+        }
+        let _colon: Token![:] = input.parse()?;
+        let fork = input.fork();
+        if let Ok(ty) = fork.parse::<Type>() {
+            input.advance_to(&fork);
+            Ok(EnumVariant::Type { ident, ty })
+        } else {
+            let pattern = Pattern::parse(&input)?;
+            let captures = pattern.collect_captures();
+            let named = if let Some(cap) = captures.first() {
+                !cap.is_inline
+            } else {
+                false
+            };
+            Ok(EnumVariant::Capture {
+                ident,
+                named,
+                fields: captures,
+                pattern,
+            })
+        }
+    }
+}
+
+impl EnumVariant {
+    fn span(&self) -> proc_macro2::Span {
+        match self {
+            EnumVariant::Capture { ident, pattern, .. } => {
+                ident.span().join(pattern.span).unwrap_or(ident.span())
+            }
+            EnumVariant::Type { ident, ty } => ident.span().join(ty.span()).unwrap_or(ident.span()),
         }
     }
 }
