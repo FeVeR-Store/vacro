@@ -271,7 +271,7 @@ impl Parse for EnumVariant {
         // 需要支持 Type, TypeName: Type, Pattern
         let ident: Ident = input.parse()?;
         let ident: Type = parse_quote!(#ident);
-        if input.is_empty() {
+        if input.peek(Token![,]) || input.is_empty() {
             return Ok(EnumVariant::Type {
                 ident: ident.clone(),
                 ty: ident,
