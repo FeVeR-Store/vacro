@@ -191,8 +191,8 @@ mod tests {
     use syn::{
         Result,
         parse::{ParseStream, Parser},
+        parse_quote,
     };
-
     // --- 辅助函数：用于简化断言 ---
 
     // 检查是否是具名捕获
@@ -356,6 +356,281 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_parse_enum_capture() {
+        let ctx = &mut ParseContext::default();
+
+        let _enum_name: Type = parse_quote!(Enum);
+        let _ty0: Type = parse_quote!(Type);
+        let _ty1: Type = parse_quote!(Ident);
+
+        let _id0: Type = parse_quote!(Ty);
+        let _id1: Type = parse_quote!(Id);
+
+        // 语法: #(args: EnumName { Type1, Type2 })
+        let input = quote! { #(args: Enum { Type, Ident }) };
+        let result = parse_capture(input, ctx).unwrap();
+
+        let MatcherKind::Enum {
+            enum_name,
+            variants,
+        } = result.matcher.kind
+        else {
+            panic!("Expected Enum matcher kind");
+        };
+
+        assert_eq!(enum_name, _enum_name);
+        assert_eq!(variants.len(), 2);
+        assert!(matches!(
+            &variants[0].0,
+            EnumVariant::Type { ident: _ty0, .. }
+        ));
+        assert!(matches!(
+            &variants[1].0,
+            EnumVariant::Type { ident: _ty1, .. }
+        ));
+
+        // 语法 #(args: EnumName { VariantName: Type })
+        let input = quote! { #(args: Enum { Ty: Type, Id: Ident }) };
+        let result = parse_capture(input, ctx).unwrap();
+
+        let MatcherKind::Enum {
+            enum_name,
+            variants,
+        } = result.matcher.kind
+        else {
+            panic!("Expected Enum matcher kind");
+        };
+
+        assert_eq!(enum_name, _enum_name);
+        assert_eq!(variants.len(), 2);
+        assert!(matches!(
+            &variants[0].0,
+            EnumVariant::Type {
+                ident: _id1,
+                ty: _ty1
+            }
+        ));
+        assert!(matches!(
+            &variants[1].0,
+            EnumVariant::Type {
+                ident: _id2,
+                ty: _ty2
+            }
+        ));
+
+        // 语法 #(args: EnumName { Capture: #(..) })
+        let input = quote! {#(args: Enum { FnArg: #(id: Ident): #(ty: Type), WithDefault: #(name: Ident) = #(default: Expr) })};
+        let result = parse_capture(input, ctx).unwrap();
+        let MatcherKind::Enum {
+            enum_name,
+            variants,
+        } = result.matcher.kind
+        else {
+            panic!("Expected Enum matcher kind");
+        };
+
+        let _id1: Type = parse_quote!(FnArg);
+        let _id2: Type = parse_quote!(WithDefault);
+
+        let _fields1 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(id),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Type),
+                name: parse_quote!(ty),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        let _fields2 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(name),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Expr),
+                name: parse_quote!(default),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        assert_eq!(enum_name, _enum_name);
+        assert_eq!(variants.len(), 2);
+        assert!(matches!(
+            &variants[0].0,
+            EnumVariant::Capture {
+                named: true,
+                ident: _id1,
+                fields: _fields1,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &variants[1].0,
+            EnumVariant::Capture {
+                named: true,
+                ident: _id2,
+                fields: _fields2,
+                ..
+            }
+        ));
+
+        // 语法 #(args: EnumName { Ident, Expr: #(@: Ident): #(@: Expr) })
+        let input = quote! {#(args: Enum { FnArg: #(@: Ident): #(@: Type), WithDefault: #(@: Ident) = #(@: Expr) })};
+        let result = parse_capture(input, ctx).unwrap();
+        let MatcherKind::Enum {
+            enum_name,
+            variants,
+        } = result.matcher.kind
+        else {
+            panic!("Expected Enum matcher kind");
+        };
+
+        let _id1: Type = parse_quote!(_0);
+        let _id2: Type = parse_quote!(_1);
+        let _fields1 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(_0),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Type),
+                name: parse_quote!(_1),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        let _fields2 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(_0),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Expr),
+                name: parse_quote!(_1),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        assert_eq!(enum_name, _enum_name);
+        assert_eq!(variants.len(), 2);
+        assert!(matches!(
+            &variants[0].0,
+            EnumVariant::Capture {
+                named: false,
+                ident: _id1,
+                fields: _fields1,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &variants[1].0,
+            EnumVariant::Capture {
+                named: false,
+                ident: _id2,
+                fields: _fields2,
+                ..
+            }
+        ));
+
+        // 混合语法
+        let input = quote! {#(args: Enum {
+            Ident,
+            Ty: Type,
+            FnArg: #(id: Ident): #(ty: Type),
+            WithDefault: #(@: Ident) = #(@: Expr) })
+        };
+        let result = parse_capture(input, ctx).unwrap();
+        let MatcherKind::Enum {
+            enum_name,
+            variants,
+        } = result.matcher.kind
+        else {
+            panic!("Expected Enum matcher kind");
+        };
+
+        let _ty1: Type = parse_quote!(Ident);
+        let _id1: Type = parse_quote!(Ident);
+        assert_eq!(enum_name, _enum_name);
+        assert_eq!(variants.len(), 4);
+        assert!(matches!(
+            &variants[0].0,
+            EnumVariant::Type {
+                ident: _id1,
+                ty: _ty1
+            }
+        ));
+
+        let _ty2: Type = parse_quote!(Type);
+        let _id2: Type = parse_quote!(Ty);
+        assert!(matches!(
+            &variants[1].0,
+            EnumVariant::Type {
+                ident: _id2,
+                ty: _ty2
+            }
+        ));
+
+        let _id3: Type = parse_quote!(FnArg);
+        let _fields3 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(id),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Type),
+                name: parse_quote!(ty),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        assert!(matches!(
+            &variants[2].0,
+            EnumVariant::Capture {
+                named: true,
+                ident: _id3,
+                fields: _fields3,
+                ..
+            }
+        ));
+        let _id4: Type = parse_quote!(WithDefault);
+        let _fields4 = vec![
+            FieldDef {
+                ty: parse_quote!(Ident),
+                name: parse_quote!(_0),
+                is_inline: false,
+                is_optional: false,
+            },
+            FieldDef {
+                ty: parse_quote!(Expr),
+                name: parse_quote!(_1),
+                is_inline: false,
+                is_optional: false,
+            },
+        ];
+        assert!(matches!(
+            &variants[3].0,
+            EnumVariant::Capture {
+                named: false,
+                ident: _id4,
+                fields: _fields4,
+                ..
+            }
+        ));
+    }
     // --- 2. Lookahead 优化逻辑测试 ---
 
     #[test]
