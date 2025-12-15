@@ -1,7 +1,7 @@
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Token, Type, braced, bracketed, parenthesized,
+    Ident, Path, Token, Type, braced, bracketed, parenthesized,
     parse::{Parse, ParseStream, Parser, discouraged::Speculative},
     parse_quote,
     spanned::Spanned,
@@ -274,27 +274,31 @@ impl Parse for EnumVariant {
         // 需要支持 Type | TypeName: Type | TypeName: Pattern
 
         // 可能是Type或TypeName
-        // 如果是Type，那么必须是可简写的模式，则必定可parse为Ident
+        let fork = input.fork();
+        // 尝试解析为Type，如果解析后是','或空，则结束
+        if let Ok(ty) = fork.parse::<Type>()
+            && (fork.is_empty() || fork.peek(Token![,]))
+        {
+            input.advance_to(&fork);
+            // 如果是Type，那么必须是可简写的模式，可解析为Path
+            let path: Path = parse_quote!(#ty);
+            let ident = path.segments.last().unwrap();
+            let ident = parse_quote!(#ident);
+            return Ok(EnumVariant::Type { ident, ty });
+        }
+
         let ident: Ident = input.parse()?;
         let ident: Type = parse_quote!(#ident);
-
-        // 如果是,或空，则结束
-        if input.peek(Token![,]) || input.is_empty() {
-            return Ok(EnumVariant::Type {
-                ident: ident.clone(),
-                ty: ident,
-            });
-        }
 
         // 否则需要是 ':'
         let _colon: Token![:] = input.parse()?;
         let fork = input.fork();
-
         // 可能是Type或Pattern
         if let Ok(ty) = fork.parse::<Type>() {
             input.advance_to(&fork);
             Ok(EnumVariant::Type { ident, ty })
         } else {
+            let fork = input.fork();
             // 如果是Pattern，那需要确认边界，即找到最近的 ','
             // 否则Pattern会贪婪匹配，将其他分支吞掉
 

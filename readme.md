@@ -172,6 +172,33 @@ Vacro's DSL design intuition comes from `macro_rules!` and regular expressions.
 | `#(?: T)`       | Anon Optional  | Validation only; skips if failed                                                                      | `!`                        | `#(?: Ident)`            |
 | `#(*[sep]: T)`  | Anon Iter      | Similar to `Punctuated`, parses by separator (validation only)                                        | `!`                        | `#(*[,]: Ident)`         |
 
+## Polymorphic Capture (Enum Parsing)
+
+Vacro supports parsing "polymorphic" structures, where a position in the input stream can be one of multiple types. By defining enum variants, Vacro automatically generates the parsing logic (using lookahead/forking) to try each variant.
+
+Syntax: `#(name: EnumName { Variant1, Variant2: Type, Variant3: Pattern })`
+
+```rust
+# use syn::{Ident, Expr};
+
+vacro::define!(MyPoly:
+    #(data: MyEnum {
+        Ident,                            // 1. Shorthand: Match Ident, produces MyEnum::Ident(Ident)
+        Integer: syn::LitInt,             // 2. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
+        Function: fn #(name: Ident),      // 3. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 4. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
+    })
+);
+
+// The macro automatically generates the Enum definition:
+// pub enum MyEnum {
+//     Ident(Ident),
+//     Integer(syn::LitInt),
+//     Function { name: Ident },
+//     Tuple(Ident, Expr)
+// }
+```
+
 ---
 
 # Vacro Roadmap
@@ -217,9 +244,9 @@ _Solves the "Array of Structs (AoS)" problem, i.e., capturing aggregated structu
 
 _Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multiple types._
 
-- [ ] **Syntax Implementation**: Support `#(name: EnumName { VariantA, VariantB })` syntax.
-- [ ] **Automatic Definition**: If `EnumName` is undefined, automatically generate an enum definition containing `VariantA(TypeA)`, `VariantB(TypeB)`.
-- [ ] **Branch Parsing**: Generate attempt-parsing logic based on `input.fork()` or `peek`, automatically handling backtracking on failure.
+- [x] **Syntax Implementation**: Support `#(name: EnumName { VariantA, VariantB })` syntax.
+- [x] **Automatic Definition**: If `EnumName` is undefined, automatically generate an enum definition containing `VariantA(TypeA)`, `VariantB(TypeB)`.
+- [x] **Branch Parsing**: Generate attempt-parsing logic based on `input.fork()` or `peek`, automatically handling backtracking on failure.
 
 ---
 
