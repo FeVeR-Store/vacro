@@ -1,7 +1,8 @@
-use proc_macro2::Delimiter;
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
+use quote::TokenStreamExt;
 use syn::{
     Ident, Token, Type, braced, bracketed, parenthesized,
-    parse::{Parse, discouraged::Speculative},
+    parse::{Parse, ParseStream, Parser, discouraged::Speculative},
     parse_quote,
     spanned::Spanned,
     token,
@@ -148,6 +149,7 @@ impl Capture {
 impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
+            // 仅是一个 #，作为符号
             if !input.peek2(token::Paren) {
                 let _hash_tag = input.parse::<Token![#]>()?;
                 let start_span = _hash_tag.span;
@@ -164,6 +166,7 @@ impl Matcher {
                 };
                 return Ok(matcher);
             }
+            // 如果是 #(...)，则解析为 Capture
             let capture = Capture::parse(&input, ctx)?;
             let span = capture.span;
             let pattern = Pattern {
@@ -268,22 +271,42 @@ impl Matcher {
 
 impl Parse for EnumVariant {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        // 需要支持 Type, TypeName: Type, Pattern
+        // 需要支持 Type | TypeName: Type | TypeName: Pattern
+
+        // 可能是Type或TypeName
+        // 如果是Type，那么必须是可简写的模式，则必定可parse为Ident
         let ident: Ident = input.parse()?;
         let ident: Type = parse_quote!(#ident);
+
+        // 如果是,或空，则结束
         if input.peek(Token![,]) || input.is_empty() {
             return Ok(EnumVariant::Type {
                 ident: ident.clone(),
                 ty: ident,
             });
         }
+
+        // 否则需要是 ':'
         let _colon: Token![:] = input.parse()?;
         let fork = input.fork();
+
+        // 可能是Type或Pattern
         if let Ok(ty) = fork.parse::<Type>() {
             input.advance_to(&fork);
             Ok(EnumVariant::Type { ident, ty })
         } else {
-            let pattern = Pattern::parse(&input)?;
+            // 如果是Pattern，那需要确认边界，即找到最近的 ','
+            // 否则Pattern会贪婪匹配，将其他分支吞掉
+
+            // 如果Pattern中有逗号，可能会导致边界出错
+            // 这要求Pattern中的','必须包裹在Group中
+            let mut tokens = TokenStream::new();
+            while !fork.peek(Token![,]) && !fork.is_empty() {
+                tokens.append(fork.parse::<TokenTree>()?);
+            }
+            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(&input) };
+            let pattern = parser.parse2(tokens)?;
+            input.advance_to(&fork);
             let captures = pattern.collect_captures();
             let named = if let Some(cap) = captures.first() {
                 !cap.is_inline
