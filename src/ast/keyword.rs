@@ -244,44 +244,51 @@ mod tests {
     #[test]
     fn test_rust_keywords() {
         let ctx = &mut ParseContext::default();
-        for _tokens in vec![quote! { fn }, quote! { let }, quote! { if }] {
-            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
-            let _k = Keyword::Rust(_tokens.to_string());
+        for tokens in vec![quote! { fn }, quote! { let }, quote! { if }] {
+            let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
-            assert_eq!(matches!(keyword, _k), true);
-            assert_eq!(matches!(keyword_tokens, _tokens), true);
+
+            assert_eq!(keyword, Keyword::Rust(tokens.to_string()));
+            assert_eq!(
+                keyword_tokens.to_string(),
+                quote! {::syn::Token![#tokens]}.to_string()
+            );
         }
     }
     #[test]
     fn test_custom_keywords() {
         let ctx = &mut ParseContext::default();
-        for _tokens in vec![quote! { miku }, quote! { teto }, quote! { len }] {
-            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
-            let _k = Keyword::Custom {
-                punctuation: true,
-                name: format_ident!("{}", _tokens.to_string()),
-                content: _tokens.to_string(),
-            };
+        for tokens in vec![quote! { miku }, quote! { teto }, quote! { len }] {
+            let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
-            assert_eq!(matches!(keyword, _k), true);
-            assert_eq!(matches!(keyword_tokens, _tokens), true);
+            assert_eq!(
+                keyword,
+                Keyword::Custom {
+                    punctuation: false,
+                    name: format_ident!("{}", tokens.to_string()),
+                    content: tokens.to_string(),
+                }
+            );
+            assert_eq!(keyword_tokens.to_string(), tokens.to_string());
         }
     }
     #[test]
     fn test_rust_punctuation() {
         let ctx = &mut ParseContext::default();
-        for _tokens in vec![quote! { ! }, quote! { ? }, quote! { . }] {
-            let keyword: Keyword = parse_keyword(_tokens.clone(), ctx).unwrap();
-            let _k = Keyword::Rust(_tokens.clone().to_string());
+        for tokens in vec![quote! { ! }, quote! { ? }, quote! { . }] {
+            let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
-            assert_eq!(matches!(keyword, _k), true);
-            assert_eq!(matches!(keyword_tokens, _tokens), true);
+            assert_eq!(keyword, Keyword::Rust(tokens.clone().to_string()));
+            assert_eq!(
+                keyword_tokens.to_string(),
+                quote! {::syn::Token![#tokens]}.to_string()
+            );
         }
     }
     #[test]
     fn test_custom_punctuation() {
         let ctx = &mut ParseContext::default();
-        for _tokens in vec![quote! { <> }, quote! { ?! }, quote! { ~~> }] {
+        for tokens in vec![quote! { <> }, quote! { ?! }, quote! { ~~> }] {
             // 与上面的解析不同，自定义符号的解析需要手动搜集，这里使用了pattern处的代码，但有修改
             // 因为quote会自动分词，'<>' -> '< >'，所以不再检查Spacing
             let parser = |input: ParseStream| -> Result<Keyword> {
@@ -298,16 +305,22 @@ mod tests {
                 Ok(keyword::parse_keyword(collect, ctx))
             };
 
-            let keyword = parser.parse2(_tokens.clone()).unwrap();
+            let keyword = parser.parse2(tokens.clone()).unwrap();
 
-            let _k = Keyword::Custom {
-                punctuation: true,
-                name: format_ident!("Punt_{}", ctx.custom_symbol_counter.to_string()),
-                content: _tokens.to_string(),
-            };
             let keyword_tokens = quote! {#keyword};
-            assert_eq!(matches!(keyword, _k), true);
-            assert_eq!(matches!(keyword_tokens, _tokens), true);
+
+            let name = format_ident!("Punt_{}", (ctx.custom_symbol_counter - 1).to_string());
+
+            assert_eq!(keyword_tokens.to_string(), name.to_string());
+
+            assert_eq!(
+                keyword,
+                Keyword::Custom {
+                    punctuation: true,
+                    name,
+                    content: tokens.to_string().replace(" ", ""),
+                }
+            );
         }
     }
 }
