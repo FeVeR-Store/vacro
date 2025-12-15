@@ -1,15 +1,23 @@
-use proc_macro2::Delimiter;
-use syn::{Ident, Token, Type, bracketed, parenthesized, spanned::Spanned, token};
+use proc_macro2::{Delimiter, TokenStream, TokenTree};
+use quote::TokenStreamExt;
+use syn::{
+    Ident, Token, Type, braced, bracketed, parenthesized,
+    parse::{Parse, ParseStream, Parser, discouraged::Speculative},
+    parse_quote,
+    spanned::Spanned,
+    token,
+};
 
 use crate::{
     ast::{
-        capture::{Binder, Capture, Matcher, MatcherKind, Quantity},
+        capture::{Binder, Capture, EnumVariant, Matcher, MatcherKind, Quantity},
         keyword::Keyword,
         node::{Pattern, PatternKind},
     },
     syntax::context::ParseContext,
 };
 
+/// 捕获 #(...)
 impl Capture {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let _hash_tag: Token![#] = input.parse()?;
@@ -141,6 +149,7 @@ impl Capture {
 impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
+            // 仅是一个 #，作为符号
             if !input.peek2(token::Paren) {
                 let _hash_tag = input.parse::<Token![#]>()?;
                 let start_span = _hash_tag.span;
@@ -157,6 +166,7 @@ impl Matcher {
                 };
                 return Ok(matcher);
             }
+            // 如果是 #(...)，则解析为 Capture
             let capture = Capture::parse(&input, ctx)?;
             let span = capture.span;
             let pattern = Pattern {
@@ -169,6 +179,46 @@ impl Matcher {
                 span,
             }
         } else if input.peek(Ident) {
+            if input.peek2(token::Brace) {
+                let enum_name: Type = input.parse()?;
+                let start_span = enum_name.span();
+
+                let inner;
+                let _brace = braced!(inner in input);
+                let variants = inner.parse_terminated(EnumVariant::parse, Token![,])?;
+
+                let span = if let Some(v) = variants.last() {
+                    start_span.join(v.span()).unwrap_or(start_span)
+                } else {
+                    start_span
+                };
+                let variants = variants
+                    .iter()
+                    .map(|v| {
+                        (
+                            v.clone(),
+                            Matcher {
+                                span: v.span(),
+                                kind: match &v {
+                                    EnumVariant::Type { ty, .. } => {
+                                        MatcherKind::SynType(ty.clone())
+                                    }
+                                    EnumVariant::Capture { pattern, .. } => {
+                                        MatcherKind::Nested(vec![pattern.clone()])
+                                    }
+                                },
+                            },
+                        )
+                    })
+                    .collect();
+                return Ok(Matcher {
+                    kind: MatcherKind::Enum {
+                        enum_name,
+                        variants,
+                    },
+                    span,
+                });
+            }
             let ty: Type = input.parse()?;
             let span = ty.span();
             Matcher {
@@ -198,7 +248,7 @@ impl Matcher {
         if !input.is_empty() {
             let start_span = cap.span;
             match cap.kind {
-                MatcherKind::SynType(_) => Err(syn::Error::new(
+                MatcherKind::SynType(_) | MatcherKind::Enum { .. } => Err(syn::Error::new(
                     input.span(),
                     format!("Unexpected '{}'", input.to_string()),
                 )),
@@ -215,6 +265,71 @@ impl Matcher {
             }
         } else {
             Ok(cap)
+        }
+    }
+}
+
+impl Parse for EnumVariant {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        // 需要支持 Type | TypeName: Type | TypeName: Pattern
+
+        // 可能是Type或TypeName
+        // 如果是Type，那么必须是可简写的模式，则必定可parse为Ident
+        let ident: Ident = input.parse()?;
+        let ident: Type = parse_quote!(#ident);
+
+        // 如果是,或空，则结束
+        if input.peek(Token![,]) || input.is_empty() {
+            return Ok(EnumVariant::Type {
+                ident: ident.clone(),
+                ty: ident,
+            });
+        }
+
+        // 否则需要是 ':'
+        let _colon: Token![:] = input.parse()?;
+        let fork = input.fork();
+
+        // 可能是Type或Pattern
+        if let Ok(ty) = fork.parse::<Type>() {
+            input.advance_to(&fork);
+            Ok(EnumVariant::Type { ident, ty })
+        } else {
+            // 如果是Pattern，那需要确认边界，即找到最近的 ','
+            // 否则Pattern会贪婪匹配，将其他分支吞掉
+
+            // 如果Pattern中有逗号，可能会导致边界出错
+            // 这要求Pattern中的','必须包裹在Group中
+            let mut tokens = TokenStream::new();
+            while !fork.peek(Token![,]) && !fork.is_empty() {
+                tokens.append(fork.parse::<TokenTree>()?);
+            }
+            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(&input) };
+            let pattern = parser.parse2(tokens)?;
+            input.advance_to(&fork);
+            let captures = pattern.collect_captures();
+            let named = if let Some(cap) = captures.first() {
+                !cap.is_inline
+            } else {
+                false
+            };
+            Ok(EnumVariant::Capture {
+                ident,
+                named,
+                fields: captures,
+                pattern,
+            })
+        }
+    }
+}
+
+impl EnumVariant {
+    fn span(&self) -> proc_macro2::Span {
+        match self {
+            EnumVariant::Capture { ident, pattern, .. } => {
+                ident.span().join(pattern.span).unwrap_or(ident.span())
+            }
+            EnumVariant::Type { ident, ty } => ident.span().join(ty.span()).unwrap_or(ident.span()),
         }
     }
 }

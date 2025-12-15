@@ -97,9 +97,9 @@ mod tests {
         // 4. 检查是否调用了 syn::parse::Parser::parse2
         assert!(output_str.contains(":: syn :: parse :: Parser :: parse2"));
 
-        // 5. 检查是否传入了正确的输入变量 (这里是 `tokens`)
-        // parse2(parser, tokens)
-        assert!(output_str.contains("(parser , tokens)"));
+        // 5. 检查是否传入了正确的输入变量 (这里是 `tokens.into()`，因为要兼容proc_macro::TokenStream和proc_macro2::TokenStream)
+        // parse2(parser, tokens . into ())
+        assert!(output_str.contains("(parser , tokens . into ())"));
     }
 
     #[test]

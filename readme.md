@@ -26,7 +26,11 @@ To parse this structure, you need to write dozens of lines of boilerplate code t
 
 ```rust
 // Traditional syn parsing logic: scattered logic, error-prone
-# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
+# use syn::{
+#     FnArg, GenericParam, Ident, Result, Token, Type, parenthesized,
+#     parse::{Parse, ParseStream},
+#     punctuated::Punctuated,
+# };
 struct MyFn {
     name: Ident,
     generics: Option<Punctuated<GenericParam, Token![,]>>,
@@ -106,10 +110,11 @@ vacro::define!(MyFn:
     #(?: -> #(ret: Type))
 );
 
-fn parse_my_fn(input: TokenStream) {
+fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Usage
     let my_fn = parse_macro_input!(input as MyFn);
     println!("Function name: {}", my_fn.name);
+    # proc_macro::TokenStream::new()
 }
 ```
 
@@ -123,13 +128,14 @@ If the pattern uses the form `name: Type`, the macro generates a struct named `O
 
 ```rust
 # use syn::{Ident, Type};
-# fn proc_macro(input: TokenStream) {
+# fn proc_macro(input: proc_macro::TokenStream) -> syn::Result<()> {
 let captured = vacro::capture!(input ->
     fn #(name: Ident) #(?: -> #(ret: Type))
 )?;
 // Access fields
 captured.name; // Ident
 captured.ret;  // Option<Type>
+# Ok(())
 # }
 
 ```
@@ -140,12 +146,16 @@ If no name is specified in the pattern (or it contains only anonymous captures),
 
 ```rust
 # use syn::{Ident, Type};
-// Parse types only, no names needed
-let (ident, ty) = vacro::capture!(input -> #(@:Ident): #(@:Type))?;
+# fn inline_capture(input: proc_macro::TokenStream) -> syn::Result<()> {
+    // Parse types only, no names needed
+    let (ident, ty) = vacro::capture!(input -> #(@:Ident): #(@:Type))?;
+    // Access fields
+    ident; // Ident
+    ty;    // Type
 
-// Access fields
-ident; // Ident
-ty;    // Type
+    # Ok(())
+# }
+
 ```
 
 ## Syntax Reference

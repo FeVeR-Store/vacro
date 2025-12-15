@@ -16,7 +16,11 @@
 
 use proc_macro2::Span;
 
-use crate::ast::{capture::Capture, keyword::Keyword, meta::SemanticInfo};
+use crate::ast::{
+    capture::{Capture, FieldDef},
+    keyword::Keyword,
+    meta::SemanticInfo,
+};
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
@@ -43,22 +47,14 @@ pub enum PatternKind {
 }
 
 impl Pattern {
-    pub fn collect_captures(&self) -> Vec<&Capture> {
-        let mut capture = vec![];
-        self.visit_captures(&mut capture);
-        capture
-    }
-    pub fn visit_captures<'a>(&'a self, collector: &mut Vec<&'a Capture>) {
+    pub fn collect_captures(&self) -> Vec<FieldDef> {
         match &self.kind {
-            PatternKind::Capture(capture) => {
-                capture.visit_captures(collector);
-            }
+            PatternKind::Literal(_) => vec![],
             PatternKind::Group { children, .. } => {
-                for child in children {
-                    child.visit_captures(collector);
-                }
+                // Group (括号) 是透明的，直接透传
+                children.iter().flat_map(|p| p.collect_captures()).collect()
             }
-            _ => (),
+            PatternKind::Capture(cap) => cap.collect_captures(),
         }
     }
 }

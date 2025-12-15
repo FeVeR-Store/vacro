@@ -16,11 +16,15 @@ impl Compiler {
         let patterns_tokens = self.compile_pattern(patterns);
         let captures = patterns.collect_captures();
 
+        let definitions = &self.definition;
+
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
 
         tokens.extend(quote! {
+            #(#definitions)*
             {
-                trait _Parse: ::syn::parse::Parse {}
+                use ::syn::parse::Parse;
+                trait _Parse: Parse {}
                 #capture_init
                 #struct_def
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
@@ -28,7 +32,7 @@ impl Compiler {
                     #patterns_tokens
                     ::std::result::Result::Ok(#struct_expr)
                 };
-                ::syn::parse::Parser::parse2(parser, #input)
+                ::syn::parse::Parser::parse2(parser, #input.into())
             }
         });
         tokens
@@ -40,10 +44,13 @@ impl Compiler {
 
         let captures = patterns.collect_captures();
 
+        let definitions = &self.definition;
+
         let (capture_init, struct_def, struct_expr, _) =
             generate_output(&captures, Some(name.clone()));
 
         tokens.extend(quote! {
+             #(#definitions)*
             #struct_def
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
