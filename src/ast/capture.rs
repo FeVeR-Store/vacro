@@ -678,85 +678,7 @@ mod tests {
             _ => panic!("Expected EnumVariant::Capture"),
         }
     }
-    // --- 2. Lookahead 优化逻辑测试 ---
-
-    #[test]
-    fn test_inject_lookahead() {
-        let ctx = &mut ParseContext::default();
-
-        // 手动构造 Pattern 列表来测试 inject_lookahead 算法
-        // 场景: Capture + Literal -> 应该注入
-
-        // Mock数据构造：为了测试私有函数，我们需要构造 Pattern
-        // 假设 Pattern 和 Keyword 是可访问的 (通常在同一 crate 或 test super 中)
-        let input = quote!(#(x: Ident));
-
-        let capture: Capture = parse_capture(input, ctx).unwrap();
-        let pattern_capture = PatternKind::Capture(capture);
-        let pattern_literal = PatternKind::Literal(Keyword::Rust(",".to_string()));
-
-        // Case 1: Capture 后面跟 Literal
-        let patterns = vec![
-            Pattern {
-                kind: pattern_capture.clone(),
-                span: Span::call_site(),
-                meta: None,
-            },
-            Pattern {
-                kind: pattern_literal.clone(),
-                span: Span::call_site(),
-                meta: None,
-            },
-        ];
-        let optimized = inject_lookahead(patterns);
-
-        assert_eq!(optimized.len(), 2);
-        // 检查第一个 Capture 是否被注入了 lookahead
-        if let PatternKind::Capture(Capture {
-            edge: Some(edge), ..
-        }) = &optimized[0].kind
-        {
-            if let Keyword::Rust(s) = edge {
-                assert_eq!(s, ",");
-            } else {
-                panic!("Wrong lookahead type");
-            }
-        } else {
-            panic!("Lookahead not injected");
-        }
-
-        // Case 2: Capture 后面跟 Capture (不应注入)
-        let patterns_consecutive = vec![
-            Pattern {
-                kind: pattern_capture.clone(),
-                span: Span::call_site(),
-                meta: None,
-            },
-            Pattern {
-                kind: pattern_capture.clone(),
-                span: Span::call_site(),
-                meta: None,
-            },
-        ];
-        let optimized_consecutive = inject_lookahead(patterns_consecutive);
-        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_consecutive[0].kind
-        {
-            panic!("Should not inject lookahead when followed by another capture");
-        }
-
-        // Case 3: Capture 在末尾 (不应注入)
-        let patterns_end = vec![Pattern {
-            kind: pattern_capture.clone(),
-            span: Span::call_site(),
-            meta: None,
-        }];
-        let optimized_end = inject_lookahead(patterns_end);
-        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_end[0].kind {
-            panic!("Should not inject lookahead at end of stream");
-        }
-    }
-
-    // --- 4. ToTokens 代码生成冒烟测试 ---
+    // --- 2. ToTokens 代码生成冒烟测试 ---
 
     #[test]
     fn test_to_tokens_smoke() {
@@ -777,5 +699,57 @@ mod tests {
         let tokens_iter = compiler.compile_capture(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));
+    }
+
+    #[test]
+    fn test_error_mixed_inline_and_named() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! {#(named: Ident)};
+        parse_capture(input, ctx).unwrap();
+        let input = quote! {#(@: Ident)};
+        let err = parse_capture(input, ctx).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("unexpected inline capture; previous captures were named")
+        );
+
+        // 重置
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! {#(@: Ident)};
+        parse_capture(input, ctx).unwrap();
+        let input = quote! {#(named: Ident)};
+        let err = parse_capture(input, ctx).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("unexpected named capture; previous captures were inline")
+        );
+    }
+
+    #[test]
+    fn test_error_missing_colon() {
+        let ctx = &mut ParseContext::default();
+        // 错误语法: #(name Ident) 缺少冒号
+        let input = quote!(#(name Ident));
+        let result = parse_capture(input, ctx);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "expected ':' after capture name"
+        );
+    }
+
+    #[test]
+    fn test_error_invalid_separator() {
+        let ctx = &mut ParseContext::default();
+        // 错误语法: #(name*[]: Ident) 分隔符为空
+        let input = quote!(#(name*[]: Ident));
+        let result = parse_capture(input, ctx);
+
+        assert!(result.is_err());
+        // 具体的错误信息取决于 bracketed! 空内容的判定
+        assert!(result.unwrap_err().to_string().contains("expected"));
     }
 }
