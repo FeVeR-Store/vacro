@@ -237,7 +237,7 @@ mod tests {
         let input = quote! { #(my_field: syn::Ident) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "my_field");
-        assert!(matches!(capture.quantity, Quantity::One));
+        assert_eq!(capture.quantity, Quantity::One);
         assert!(matches!(capture.matcher.kind, MatcherKind::SynType(_)));
     }
 
@@ -248,7 +248,7 @@ mod tests {
         let input = quote! { #(maybe_val?: u32) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "maybe_val");
-        assert!(matches!(capture.quantity, Quantity::Optional));
+        assert_eq!(capture.quantity, Quantity::Optional);
     }
 
     #[test]
@@ -278,12 +278,12 @@ mod tests {
         let input1 = quote! { #(@: Ident) };
         let spec1: Capture = parse_capture(input1, ctx).unwrap();
         assert_inline(&spec1);
-        assert!(matches!(spec1.quantity, Quantity::One));
+        assert_eq!(spec1.quantity, Quantity::One);
 
         let input2 = quote! { #(@?: Ident) };
         let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_inline(&spec2);
-        assert!(matches!(spec2.quantity, Quantity::Optional));
+        assert_eq!(spec2.quantity, Quantity::Optional);
     }
 
     #[test]
@@ -294,13 +294,13 @@ mod tests {
         let input = quote! { #(syn::Type) };
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_anonymous(&capture);
-        assert!(matches!(capture.quantity, Quantity::One));
+        assert_eq!(capture.quantity, Quantity::One);
 
         // 语法: ?: Type
         let input2 = quote! { #(?: syn::Visibility) };
         let spec2: Capture = parse_capture(input2, ctx).unwrap();
         assert_anonymous(&spec2);
-        assert!(matches!(spec2.quantity, Quantity::Optional));
+        assert_eq!(spec2.quantity, Quantity::Optional);
     }
 
     #[test]
@@ -322,13 +322,28 @@ mod tests {
                 // [可选捕获( -> 具名捕获(name: Ident))]
                 if let PatternKind::Capture(cap) = &pattern_list[0].kind {
                     // 可选
-                    assert!(matches!(cap.quantity, Quantity::Optional));
+                    assert_eq!(cap.quantity, Quantity::Optional);
                     match &cap.matcher.kind {
                         MatcherKind::Nested(nest) => {
-                            let _keyword = Keyword::Rust("->".to_string());
-                            assert!(matches!(&nest[0].kind, PatternKind::Literal(_keyword)));
-                            let _capture = parse_capture(quote! {#(name: Ident)}, ctx);
-                            assert!(matches!(&nest[1].kind, PatternKind::Capture(_capture)))
+                            match &nest[0].kind {
+                                PatternKind::Literal(keyword) => {
+                                    assert_eq!(keyword, &Keyword::Rust("->".to_string()))
+                                }
+                                _ => panic!("First element of patterns should be Literal"),
+                            }
+                            match &nest[1].kind {
+                                PatternKind::Capture(capture) => {
+                                    assert_eq!(capture.quantity, Quantity::One);
+                                    assert_eq!(capture.binder, Binder::Named(parse_quote!(name)));
+                                    match &capture.matcher.kind {
+                                        MatcherKind::SynType(type_matcher) => {
+                                            assert_eq!(type_matcher, &parse_quote!(Ident));
+                                        }
+                                        _ => panic!("expected SynType"),
+                                    }
+                                }
+                                _ => panic!("Second element of patterns should be Capture"),
+                            }
                         }
                         _ => panic!("Capture matcher should be -> literal"),
                     }
@@ -360,7 +375,7 @@ mod tests {
     fn test_parse_enum_capture() {
         let ctx = &mut ParseContext::default();
 
-        let _enum_name: Type = parse_quote!(Enum);
+        let expect_enum_name: Type = parse_quote!(Enum);
         // 语法: #(args: EnumName { Type1, Type2 })
         let input = quote! { #(args: Enum { Type, syn::Ident }) };
         let result = parse_capture(input, ctx).unwrap();
@@ -373,7 +388,7 @@ mod tests {
             panic!("Expected Enum matcher kind");
         };
 
-        assert_eq!(enum_name, _enum_name);
+        assert_eq!(enum_name, expect_enum_name);
         assert_eq!(variants.len(), 2);
 
         match &variants[0].0 {
@@ -404,7 +419,7 @@ mod tests {
             panic!("Expected Enum matcher kind");
         };
 
-        assert_eq!(enum_name, _enum_name);
+        assert_eq!(enum_name, expect_enum_name);
         assert_eq!(variants.len(), 2);
         match &variants[0].0 {
             EnumVariant::Type { ident, ty } => {
@@ -432,7 +447,7 @@ mod tests {
             panic!("Expected Enum matcher kind");
         };
 
-        assert_eq!(enum_name, _enum_name);
+        assert_eq!(enum_name, expect_enum_name);
         assert_eq!(variants.len(), 2);
 
         match &variants[0].0 {
@@ -506,7 +521,7 @@ mod tests {
             panic!("Expected Enum matcher kind");
         };
 
-        assert_eq!(enum_name, _enum_name);
+        assert_eq!(enum_name, expect_enum_name);
         assert_eq!(variants.len(), 2);
 
         match &variants[0].0 {
@@ -584,7 +599,7 @@ mod tests {
             panic!("Expected Enum matcher kind");
         };
 
-        assert_eq!(enum_name, _enum_name);
+        assert_eq!(enum_name, expect_enum_name);
         assert_eq!(variants.len(), 4);
 
         match &variants[0].0 {
