@@ -5,7 +5,7 @@ use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::Ident;
 
 #[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug, PartialEq))]
 pub enum Keyword {
     Rust(String),
     Custom {

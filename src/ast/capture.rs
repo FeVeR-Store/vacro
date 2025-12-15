@@ -24,7 +24,7 @@ pub struct Capture {
 
 /// 绑定模式
 #[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug, PartialEq))]
 pub enum Binder {
     Named(syn::Ident), // name: ...
     Inline(usize),     // @: ...
@@ -74,7 +74,7 @@ pub enum EnumVariant {
 
 /// 数量限定
 #[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug, PartialEq))]
 pub enum Quantity {
     One,                   // 默认
     Optional,              // ?
@@ -82,7 +82,7 @@ pub enum Quantity {
 }
 
 #[derive(Clone)]
-#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug, PartialEq))]
 pub struct FieldDef {
     pub name: Ident,
     pub ty: Type,
