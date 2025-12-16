@@ -1,17 +1,23 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use syn::Local;
 
 use crate::{
-    ast::input::{CaptureInput, DefineInput},
+    ast::input::{BindInput, DefineInput},
     codegen::{logic::Compiler, output::generate_output},
 };
 
 /// 入口部分
 impl Compiler {
-    pub fn compile_capture_input(&mut self, input: &CaptureInput) -> TokenStream {
+    pub fn compile_capture_input(&mut self, input: &BindInput) -> TokenStream {
         let mut tokens = TokenStream::new();
-        let CaptureInput {
-            input, patterns, ..
+
+        let BindInput {
+            input,
+            patterns,
+            local: Local { let_token, pat, .. },
+            suffix,
+            ..
         } = input;
         let patterns_tokens = self.compile_pattern(patterns);
         let captures = patterns.collect_captures();
@@ -19,13 +25,11 @@ impl Compiler {
         let definitions = &self.definition;
 
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
-
         tokens.extend(quote! {
             #(#definitions)*
-            {
+            #let_token #pat = {
                 use ::syn::parse::Parse;
                 trait _Parse: Parse {}
-                #capture_init
                 #struct_def
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                     #capture_init
@@ -33,7 +37,7 @@ impl Compiler {
                     ::std::result::Result::Ok(#struct_expr)
                 };
                 ::syn::parse::Parser::parse2(parser, #input.into())
-            }
+            }#suffix
         });
         tokens
     }
@@ -50,7 +54,7 @@ impl Compiler {
             generate_output(&captures, Some(name.clone()));
 
         tokens.extend(quote! {
-             #(#definitions)*
+            #(#definitions)*
             #struct_def
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {

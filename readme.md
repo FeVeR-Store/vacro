@@ -118,9 +118,9 @@ fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 ```
 
-### 2\. `capture!`: On-the-fly Stream Parsing
+### 2\. `bind!`: On-the-fly Stream Parsing
 
-If you want to quickly consume a segment of a `TokenStream` within existing parsing logic, use `capture!`.
+If you want to quickly consume a segment of a `TokenStream` within existing parsing logic, use `bind!`.
 
 #### Named Capture
 
@@ -129,9 +129,11 @@ If the pattern uses the form `name: Type`, the macro generates a struct named `O
 ```rust
 # use syn::{Ident, Type};
 # fn proc_macro(input: proc_macro::TokenStream) -> syn::Result<()> {
-let captured = vacro::capture!(input ->
-    fn #(name: Ident) #(?: -> #(ret: Type))
-)?;
+vacro::bind!(
+    let captured = (input ->
+        fn #(name: Ident) #(?: -> #(ret: Type))
+    )?;
+);
 // Access fields
 captured.name; // Ident
 captured.ret;  // Option<Type>
@@ -148,7 +150,9 @@ If no name is specified in the pattern (or it contains only anonymous captures),
 # use syn::{Ident, Type};
 # fn inline_capture(input: proc_macro::TokenStream) -> syn::Result<()> {
     // Parse types only, no names needed
-    let (ident, ty) = vacro::capture!(input -> #(@:Ident): #(@:Type))?;
+    vacro::bind!(
+        let (ident, ty) = (input -> #(@:Ident): #(@:Type))?;
+    );
     // Access fields
     ident; // Ident
     ty;    // Type
@@ -205,11 +209,11 @@ vacro::define!(MyPoly:
 
 ## 📅 Phase 1: Solidifying Foundations (v0.1.x) - Current Focus
 
-**Goal:** Ensure existing core macros (`define!`, `capture!`) are stable and reliable, and establish a comprehensive testing and documentation system.
+**Goal:** Ensure existing core macros (`define!`, `bind!`) are stable and reliable, and establish a comprehensive testing and documentation system.
 
 ### 1. Improve Documentation (Documentation)
 
-- [ ] **API Documentation**: Add detailed Rustdoc comments to core structures like `Pattern`, `CaptureInput`, and `Keyword` to ensure readability on `docs.rs`.
+- [ ] **API Documentation**: Add detailed Rustdoc comments to core structures like `Pattern`, `BindInput`, and `Keyword` to ensure readability on `docs.rs`.
 - [ ] **README Enhancement**: Integrate the latest README, add an `examples/` directory, and provide basic real-world examples (such as parsing simple structs and functions).
 - [ ] **Error Reporting Optimization**: Optimize `syn::Error` generation to ensure that when DSL syntax errors occur (e.g., mismatched parentheses), users receive clear compiler error messages instead of internal panics.
 
