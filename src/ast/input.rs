@@ -1,12 +1,15 @@
-use syn::{Ident, Token};
+use proc_macro2::TokenStream;
+use syn::{Ident, Local, Token};
 
 use crate::ast::node::Pattern;
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-pub struct CaptureInput {
+pub struct BindInput {
+    pub local: Local,
     pub input: Ident,
     pub _arrow: Token![->],
     pub patterns: Pattern,
+    pub suffix: TokenStream,
 }
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
@@ -30,8 +33,8 @@ mod tests {
     #[test]
     fn test_parse_valid_input() {
         // 测试标准语法: input_var -> pattern
-        let stream = quote! { my_tokens -> name: Ident };
-        let result: CaptureInput = parse2(stream).unwrap();
+        let stream = quote! { let res = (my_tokens -> name: Ident); };
+        let result: BindInput = parse2(stream).unwrap();
 
         assert_eq!(result.input.to_string(), "my_tokens");
         // 验证 patterns 能够成功解析 (PatternList 的具体解析由它自己的测试保证)
@@ -42,9 +45,9 @@ mod tests {
     fn test_parse_complex_patterns() {
         // 测试复杂模式: input -> #(a: Ident)
         let stream = quote! {
-            input_stream -> #(x: Ident)
+            let res = (input_stream -> #(x: Ident));
         };
-        let result: CaptureInput = parse2(stream).unwrap();
+        let result: BindInput = parse2(stream).unwrap();
 
         assert_eq!(result.input.to_string(), "input_stream");
     }
@@ -53,17 +56,17 @@ mod tests {
     fn test_parse_error_missing_arrow() {
         // 错误语法: 缺少箭头
         let stream = quote! { my_tokens name: Ident };
-        let result = parse2::<CaptureInput>(stream);
+        let result = parse2::<BindInput>(stream);
 
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "expected `->`");
+        assert_eq!(result.unwrap_err().to_string(), "expected `let`");
     }
 
     #[test]
     fn test_parse_error_missing_input() {
         // 错误语法: 缺少输入变量名
         let stream = quote! { -> name: Ident };
-        let result = parse2::<CaptureInput>(stream);
+        let result = parse2::<BindInput>(stream);
 
         assert!(result.is_err());
     }
@@ -74,8 +77,8 @@ mod tests {
     fn test_to_tokens_structure() {
         let mut compiler = Compiler::new();
         // 构建一个有效的 CaptureInput
-        let stream = quote! { tokens -> #(val: Ident) };
-        let capture_input: CaptureInput = parse2(stream).unwrap();
+        let stream = quote! { let res = (tokens -> #(val: Ident)); };
+        let capture_input: BindInput = parse2(stream).unwrap();
 
         // 生成代码
         let output = compiler.compile_capture_input(&capture_input);
@@ -103,25 +106,25 @@ mod tests {
     }
 
     #[test]
-    fn test_to_tokens_scope_block() {
+    fn test_to_tokens_suffix() {
         let mut compiler = Compiler::new();
         // 确保生成的代码被包裹在一个独立的块 {} 中
         // 这样生成的 struct Output 不会污染外部作用域
-        let stream = quote! { t -> v: Ident };
-        let capture_input: CaptureInput = parse2(stream).unwrap();
+        let stream = quote! { let res = (t -> v: Ident)?; };
+        let capture_input: BindInput = parse2(stream).unwrap();
         let output = compiler.compile_capture_input(&capture_input);
 
         let output_str = output.to_string();
-        assert!(output_str.trim().starts_with("{"));
-        assert!(output_str.trim().ends_with("}"));
+        assert!(output_str.trim().starts_with("let res ="));
+        assert!(output_str.trim().ends_with("} ? ;"));
     }
 
     // 集成测试模拟：检查生成的逻辑是否包含捕获组初始化
     #[test]
     fn test_generated_logic_contains_initialization() {
         let mut compiler = Compiler::new();
-        let stream = quote! { t -> #(val?: Ident) };
-        let capture_input: CaptureInput = parse2(stream).unwrap();
+        let stream = quote! { let res = (t -> #(val?: Ident)); };
+        let capture_input: BindInput = parse2(stream).unwrap();
         let output = compiler.compile_capture_input(&capture_input).to_string();
 
         // generate_output 会生成类似 `let mut val = None;` 的代码
