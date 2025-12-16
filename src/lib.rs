@@ -20,11 +20,11 @@ pub(crate) mod transform;
 
 use proc_macro::TokenStream;
 
-use crate::impls::{capture_impl, define_impl};
+use crate::impls::{bind_impl, define_impl};
 
 #[proc_macro]
-pub fn capture(input: TokenStream) -> TokenStream {
-    capture_impl(input)
+pub fn bind(input: TokenStream) -> TokenStream {
+    bind_impl(input)
 }
 
 #[proc_macro]

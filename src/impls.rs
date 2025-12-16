@@ -2,13 +2,13 @@ use proc_macro::TokenStream;
 use syn::parse_macro_input;
 
 use crate::{
-    ast::input::{CaptureInput, DefineInput},
+    ast::input::{BindInput, DefineInput},
     codegen::logic::Compiler,
 };
 
-pub fn capture_impl(input: TokenStream) -> TokenStream {
+pub fn bind_impl(input: TokenStream) -> TokenStream {
     let mut compiler = Compiler::new();
-    let capture_input = parse_macro_input!(input as CaptureInput);
+    let capture_input = parse_macro_input!(input as BindInput);
 
     compiler.compile_capture_input(&capture_input).into()
 }

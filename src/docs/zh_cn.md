@@ -118,9 +118,9 @@ fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 ```
 
-### 2\. `capture!`：即时流解析
+### 2\. `bind!`：即时流解析
 
-如果你在现有的解析逻辑中，想要快速消费一段 `TokenStream`，请使用 `capture!`。
+如果你在现有的解析逻辑中，想要快速消费一段 `TokenStream`，请使用 `bind!`。
 
 #### 命名捕获 (Named Capture)
 
@@ -129,9 +129,10 @@ fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 ```rust
 # use syn::{Ident, Type};
 # fn proc_macro(input: proc_macro::TokenStream) -> syn::Result<()> {
-let captured = vacro::capture!(input ->
-    fn #(name: Ident) #(?: -> #(ret: Type))
-)?;
+vacro::bind!(
+    let captured = (input ->
+        fn #(name: Ident) #(?: -> #(ret: Type)))?;
+);
 // 访问字段
 captured.name; // Ident
 captured.ret;  // Option<Type>
@@ -147,7 +148,9 @@ captured.ret;  // Option<Type>
 # use syn::{Ident, Type};
 # fn inline_capture(input: proc_macro::TokenStream) -> syn::Result<()> {
     // 仅解析类型，不需要名字
-    let (ident, ty) = vacro::capture!(input -> #(@:Ident): #(@:Type))?;
+    vacro::bind!(
+        let (ident, ty) = (input -> #(@:Ident): #(@:Type))?;
+    );
     // 访问字段
     ident; // Ident
     ty;    // Type
@@ -203,11 +206,11 @@ vacro::define!(MyPoly:
 
 ## 📅 阶段一：夯实基础 (v0.1.x) - 当前重点
 
-**目标：** 确保现有核心宏（`define!`、`capture!`）稳定可靠，并建立完善的测试与文档体系。
+**目标：** 确保现有核心宏（`define!`、`bind!`）稳定可靠，并建立完善的测试与文档体系。
 
 ### 1\. 完善文档 (Documentation)
 
-  - [ ] **API 文档化**：为 `Pattern`、`CaptureInput` 和 `Keyword` 等核心结构添加详细的 Rustdoc 注释，确保 `docs.rs` 上的可读性。
+  - [ ] **API 文档化**：为 `Pattern`、`BindInput` 和 `Keyword` 等核心结构添加详细的 Rustdoc 注释，确保 `docs.rs` 上的可读性。
   - [ ] **README 增强**：整合最新的 README，添加 `examples/` 目录，并提供基础的实战案例（如解析简单的结构体和函数）。
   - [ ] **错误报告优化**：优化 `syn::Error` 的生成，确保当 DSL 语法错误（如括号不匹配）时，用户能收到清晰的编译器报错，而不是内部 panic。
 
