@@ -188,15 +188,17 @@ Syntax: `#(name: EnumName { Variant1, Variant2: Type, Variant3: Pattern })`
 vacro::define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. Shorthand: Match Ident, produces MyEnum::Ident(Ident)
-        Integer: syn::LitInt,             // 2. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
-        Function: fn #(name: Ident),      // 3. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
-        Tuple: (#(@: Ident), #(@: Expr)), // 4. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
+        syn::Type,                        // 2. Shorthand: Match Type, produces MyEnum::Type(syn::Type)
+        Integer: syn::LitInt,             // 3. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
+        Function: fn #(name: Ident),      // 4. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 5. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
     })
 );
 
 // The macro automatically generates the Enum definition:
 // pub enum MyEnum {
 //     Ident(Ident),
+//     Type(syn::Type),
 //     Integer(syn::LitInt),
 //     Function { name: Ident },
 //     Tuple(Ident, Expr)

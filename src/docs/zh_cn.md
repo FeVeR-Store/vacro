@@ -185,15 +185,17 @@ Vacro 支持解析“多态”结构，即输入流中的某个位置可能是�
 vacro::define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. 简写：匹配 Ident，生成 MyEnum::Ident(Ident)
-        Integer: syn::LitInt,             // 2. 别名：匹配 syn::LitInt，生成 MyEnum::Integer(syn::LitInt)
-        Function: fn #(name: Ident),      // 3. 模式：匹配模式（具名），生成 MyEnum::Function { name: Ident }
-        Tuple: (#(@: Ident), #(@: Expr)), // 4. 模式：匹配模式（行内），生成 MyEnum::Tuple(Ident, Expr)
+        syn::Type,                        // 2. 简写：匹配 syn::Type，生成 MyEnum::Type(syn::Type)
+        Integer: syn::LitInt,             // 3. 别名：匹配 syn::LitInt，生成 MyEnum::Integer(syn::LitInt)
+        Function: fn #(name: Ident),      // 4. 模式：匹配模式（具名），生成 MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 5. 模式：匹配模式（行内），生成 MyEnum::Tuple(Ident, Expr)
     })
 );
 
 // 宏会自动生成如下 Enum 定义：
 // pub enum MyEnum {
 //     Ident(Ident),
+//     Type(syn::Type),
 //     Integer(syn::LitInt),
 //     Function { name: Ident },
 //     Tuple(Ident, Expr)
