@@ -1,4 +1,3 @@
-// tests/test_define.rs
 use quote::quote;
 use syn::{Ident, LitInt, parse2};
 use vacro::define;
