@@ -10,9 +10,11 @@ repository = "https://github.com/FeVeR-Store/vacro"
 readme = "readme.md"
 keywords = ["macros", "parsing", "syn", "proc-macro"]
 categories = ["development-tools::procedural-macro-helpers", "parsing"]
+documentation = "https://docs.rs/vacro"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = [ "--html-in-header", "docs/doc-i18n.html" ]
 
 [lib]
 proc-macro = true
