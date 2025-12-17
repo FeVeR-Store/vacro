@@ -225,6 +225,8 @@ impl KeywordMap {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use proc_macro2::Punct;
     use quote::format_ident;
     use syn::{
@@ -322,5 +324,49 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn test_parse_complex_operators() {
+        let ctx = &mut ParseContext::default();
+        // 测试 Rust 的多字符运算符，确保它们被识别为单一的 Keyword::Rust
+        let ops: Vec<_> = vec!["->", "=>", "::", "..", "..=", "&&", "||", "<<", ">>"];
+
+        for op in ops {
+            // 注意：quote! 会自动分词，所以这里直接测试字符串解析逻辑可能更准，
+            // 或者构造 TokenStream。这里复用 parse_keyword 函数。
+            let kw = keyword::parse_keyword(op, ctx);
+            match kw {
+                Keyword::Rust(s) => assert_eq!(s, op.to_string()),
+                _ => panic!("Operator {} should be parsed as Rust keyword", op),
+            }
+        }
+    }
+
+    #[test]
+    fn test_ident_collision() {
+        let ctx = &mut ParseContext::default();
+        // 测试看似像关键字但实际上是自定义标识符的情况
+        let inputs: Vec<_> = vec!["match_", "fn_name", "structA"]
+            .iter()
+            .map(|op| TokenStream::from_str(op).unwrap())
+            .collect();
+
+        for input in inputs {
+            let kw = keyword::parse_keyword(input.clone(), ctx);
+            match kw {
+                Keyword::Custom { content, .. } => assert_eq!(content, input.to_string()),
+                Keyword::Rust(_) => {
+                    panic!("Identifier {} should NOT be parsed as Rust keyword", input)
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_underscore() {
+        let ctx = &mut ParseContext::default();
+        let kw = keyword::parse_keyword(TokenStream::from_str("_").unwrap(), ctx);
+        assert_eq!(kw, Keyword::Rust("_".to_string()));
     }
 }

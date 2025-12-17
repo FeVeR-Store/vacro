@@ -69,3 +69,198 @@ pub fn inject_lookahead(patterns: Vec<Pattern>) -> Vec<Pattern> {
 
     optimized
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proc_macro2::{Span, TokenStream};
+    use quote::quote;
+    use syn::{
+        Result,
+        parse::{ParseStream, Parser},
+    };
+
+    use crate::{
+        ast::{
+            capture::Capture,
+            keyword::Keyword,
+            node::{Pattern, PatternKind},
+        },
+        syntax::context::ParseContext,
+    };
+
+    fn parse_capture(input: TokenStream, ctx: &mut ParseContext) -> Result<Capture> {
+        let parser = move |input: ParseStream| Capture::parse(input, ctx);
+        parser.parse2(input)
+    }
+
+    #[test]
+    fn test_inject_lookahead() {
+        let ctx = &mut ParseContext::default();
+
+        // 手动构造 Pattern 列表来测试 inject_lookahead 算法
+        // 场景: Capture + Literal -> 应该注入
+
+        // Mock数据构造：为了测试私有函数，我们需要构造 Pattern
+        // 假设 Pattern 和 Keyword 是可访问的 (通常在同一 crate 或 test super 中)
+        let input = quote!(#(x: Ident));
+
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        let pattern_capture = PatternKind::Capture(capture);
+        let pattern_literal = PatternKind::Literal(Keyword::Rust(",".to_string()));
+
+        // Case 1: Capture 后面跟 Literal
+        let patterns = vec![
+            Pattern {
+                kind: pattern_capture.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: pattern_literal.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
+        let optimized = inject_lookahead(patterns);
+
+        assert_eq!(optimized.len(), 2);
+        // 检查第一个 Capture 是否被注入了 lookahead
+        if let PatternKind::Capture(Capture {
+            edge: Some(edge), ..
+        }) = &optimized[0].kind
+        {
+            if let Keyword::Rust(s) = edge {
+                assert_eq!(s, ",");
+            } else {
+                panic!("Wrong lookahead type");
+            }
+        } else {
+            panic!("Lookahead not injected");
+        }
+
+        // Case 2: Capture 后面跟 Capture (不应注入)
+        let patterns_consecutive = vec![
+            Pattern {
+                kind: pattern_capture.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: pattern_capture.clone(),
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
+        let optimized_consecutive = inject_lookahead(patterns_consecutive);
+        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_consecutive[0].kind
+        {
+            panic!("Should not inject lookahead when followed by another capture");
+        }
+
+        // Case 3: Capture 在末尾 (不应注入)
+        let patterns_end = vec![Pattern {
+            kind: pattern_capture.clone(),
+            span: Span::call_site(),
+            meta: None,
+        }];
+        let optimized_end = inject_lookahead(patterns_end);
+        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_end[0].kind {
+            panic!("Should not inject lookahead at end of stream");
+        }
+    }
+    #[test]
+    fn test_inject_lookahead_complex_sequence() {
+        let ctx = &mut ParseContext::default();
+
+        // 构造序列: [Capture(A), Literal(,), Capture(B), Literal(;)]
+        // 期望: A 注入 ',', B 注入 ';'
+        let cap_a = parse_capture(quote!(#(a: Ident)), ctx).unwrap();
+        let lit_comma = PatternKind::Literal(Keyword::Rust(",".to_string()));
+        let cap_b = parse_capture(quote!(#(b: Ident)), ctx).unwrap();
+        let lit_semi = PatternKind::Literal(Keyword::Rust(";".to_string()));
+
+        let patterns = vec![
+            Pattern {
+                kind: PatternKind::Capture(cap_a),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: lit_comma,
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: PatternKind::Capture(cap_b),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: lit_semi,
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
+
+        let optimized = inject_lookahead(patterns);
+
+        assert_eq!(optimized.len(), 4);
+
+        // 检查 A 是否注入了 ','
+        if let PatternKind::Capture(c) = &optimized[0].kind {
+            assert_eq!(c.edge, Some(Keyword::Rust(",".to_string())));
+        } else {
+            panic!("Expected Capture at index 0");
+        }
+
+        // 检查 B 是否注入了 ';'
+        if let PatternKind::Capture(c) = &optimized[2].kind {
+            assert_eq!(c.edge, Some(Keyword::Rust(";".to_string())));
+        } else {
+            panic!("Expected Capture at index 2");
+        }
+    }
+
+    #[test]
+    fn test_inject_lookahead_interrupted_by_group() {
+        let ctx = &mut ParseContext::default();
+
+        // 构造序列: [Capture(A), Group(...), Literal(,)]
+        // 期望: A 不会被注入 ','，因为中间隔了一个 Group
+        let cap_a = parse_capture(quote!(#(a: Ident)), ctx).unwrap();
+        let group = PatternKind::Group {
+            delimiter: proc_macro2::Delimiter::Parenthesis,
+            children: vec![],
+        };
+        let lit_comma = PatternKind::Literal(Keyword::Rust(",".to_string()));
+
+        let patterns = vec![
+            Pattern {
+                kind: PatternKind::Capture(cap_a),
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: group,
+                span: Span::call_site(),
+                meta: None,
+            },
+            Pattern {
+                kind: lit_comma,
+                span: Span::call_site(),
+                meta: None,
+            },
+        ];
+
+        let optimized = inject_lookahead(patterns);
+
+        // 检查 A 的 edge 应该是 None
+        if let PatternKind::Capture(c) = &optimized[0].kind {
+            assert!(
+                c.edge.is_none(),
+                "Capture should not consume literal across a group"
+            );
+        }
+    }
+}
