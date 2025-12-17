@@ -2,9 +2,11 @@
 
 **Making Rust Procedural Macro Development Simple Again: A Declarative Parsing Library**
 
-[](https://www.google.com/search?q=https://crates.io/crates/vacro)
-[](https://www.google.com/search?q=https://docs.rs/vacro)
-[](https://www.google.com/search?q=LICENSE)
+[<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?branch=master&style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions?query=branch%3Amaster)
+
 
 ## Introduction
 
@@ -315,4 +317,17 @@ _Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multip
 
 ## License
 
-MIT
+Licensed under either of
+
+ * Apache License, Version 2.0
+   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license
+   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
