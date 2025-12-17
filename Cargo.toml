@@ -1,9 +1,15 @@
 [package]
 name = "vacro"
 version = "0.1.1"
-edition = "2024"
+edition = "2021"
 authors = ["FeVeR renyis@foxmail.com"]
 license = "MIT OR Apache-2.0"
+
+description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
+repository = "https://github.com/FeVeR-Store/vacro"
+readme = "readme.md"
+keywords = ["macros", "parsing", "syn", "proc-macro"]
+categories = ["development-tools::procedural-macro-helpers", "parsing"]
 
 [package.metadata.docs.rs]
 all-features = true

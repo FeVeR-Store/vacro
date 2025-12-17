@@ -1,11 +1,11 @@
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Path, Token, Type, braced, bracketed, parenthesized,
-    parse::{Parse, ParseStream, Parser, discouraged::Speculative},
+    braced, bracketed, parenthesized,
+    parse::{discouraged::Speculative, Parse, ParseStream, Parser},
     parse_quote,
     spanned::Spanned,
-    token,
+    token, Ident, Path, Token, Type,
 };
 
 use crate::{
@@ -277,15 +277,15 @@ impl Parse for EnumVariant {
         // 可能是Type或TypeName
         let fork = input.fork();
         // 尝试解析为Type，如果解析后是','或空，则结束
-        if let Ok(ty) = fork.parse::<Type>()
-            && (fork.is_empty() || fork.peek(Token![,]))
-        {
-            input.advance_to(&fork);
-            // 如果是Type，那么必须是可简写的模式，可解析为Path
-            let path: Path = parse_quote!(#ty);
-            let ident = path.segments.last().unwrap();
-            let ident = parse_quote!(#ident);
-            return Ok(EnumVariant::Type { ident, ty });
+        if let Ok(ty) = fork.parse::<Type>() {
+            if fork.is_empty() || fork.peek(Token![,]) {
+                input.advance_to(&fork);
+                // 如果是Type，那么必须是可简写的模式，可解析为Path
+                let path: Path = parse_quote!(#ty);
+                let ident = path.segments.last().unwrap();
+                let ident = parse_quote!(#ident);
+                return Ok(EnumVariant::Type { ident, ty });
+            }
         }
 
         let ident: Ident = input.parse()?;
