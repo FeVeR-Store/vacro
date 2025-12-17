@@ -1,0 +1,10 @@
+[package]
+name = "vacro-trace"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+syn = { version = "2.0", features = ["full", "visit-mut"] }
+proc-macro2 = "1.0"
+quote = "1.0"
+rust-format = { version = "0.3.4", features = ["token_stream","pretty_please"] }

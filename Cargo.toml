@@ -11,13 +11,19 @@ all-features = true
 proc-macro = true
 
 [features]
+default = ["extra-traits"]
 extra-traits = ["syn/extra-traits"]
+
+[workspace]
+members = ["vacro-core", "vacro-trace", "vacro-trace-macro"]
 
 [dev-dependencies]
 trybuild = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
+syn = { version = "2.0", features = ["full", "visit-mut"] }
 proc-macro2 = "1.0"
 quote = "1.0"
+vacro-trace = { path = "./vacro-trace" }
+vacro-trace-macro = { path = "./vacro-trace-macro" }
