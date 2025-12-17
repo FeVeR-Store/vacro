@@ -177,12 +177,10 @@ fn generate_captures(ty: &Type, binder: &Binder) -> Option<FieldDef> {
 
 #[cfg(test)]
 mod tests {
-
     use crate::{
         ast::{keyword::Keyword, node::PatternKind},
         codegen::logic::Compiler,
         syntax::context::ParseContext,
-        transform::lookahead::inject_lookahead,
     };
 
     use super::*;
