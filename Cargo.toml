@@ -13,20 +13,33 @@ categories = ["development-tools::procedural-macro-helpers", "parsing"]
 documentation = "https://docs.rs/vacro"
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["extra-traits", "doc-all"]
 rustdoc-args = [ "--html-in-header", "docs/doc-i18n.html" ]
 
 [lib]
 proc-macro = true
 
 [features]
+default = ["doc-en"]
 extra-traits = ["syn/extra-traits"]
+doc-en = ["vacro-doc-i18n/doc-en"]
+doc-cn = ["vacro-doc-i18n/doc-cn"]
+doc-all = ["vacro-doc-i18n/doc-all"]
+
+[workspace]
+members = ["vacro-doc-i18n"]
+
+[workspace.dependencies]
+syn = { version = "2.0", features = ["full"] }
+proc-macro2 = "1.0"
+quote = "1.0"
 
 [dev-dependencies]
 trybuild = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
-proc-macro2 = "1.0"
-quote = "1.0"
+vacro-doc-i18n = { path = "./vacro-doc-i18n" }
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
