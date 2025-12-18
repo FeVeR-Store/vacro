@@ -7,7 +7,6 @@
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
 [<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions/workflows/publish.yml)
 
-
 ## Introduction
 
 **Vacro** is a declarative parsing library designed specifically for Rust Procedural Macros.
@@ -92,6 +91,17 @@ vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(a
 ```
 
 One line of code covers all complex parsing logic.
+
+## Installation
+
+To use Vacro in your project, add the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+vacro = { version = "0.1.4", features = ["doc-en"] } # enable English docs
+```
+
+About Multi Language Support, see [Multi Language Support](#multi-language-support-since-v014)
 
 ## Core Macros
 
@@ -254,6 +264,25 @@ fn main() -> Result<()> {
 }
 ```
 
+## Multi-language Support (since v0.1.4)
+
+Starting from version `v0.1.4`, `vacro` provides support for multi-language documentation through [`vacro-doc-i18n`](https://crates.io/crates/vacro-doc-i18n). You can control the language of IDE tooltips (Hover) and generated documentation by toggling `features` in your `Cargo.toml`.
+
+Simply enable the corresponding language feature in your project's dependencies. By default (when no features are enabled), the documentation is displayed in English.
+
+```toml
+[dependencies]
+# Enable English documentation support
+vacro = { version = "0.1.4", features = ["doc-en"] }
+
+# Or enable Chinese documentation support
+# vacro = { version = "0.1.4", features = ["doc-cn"] }
+
+# Only used when publishing to docs.rs (retains all languages without filtering)
+# vacro = { version = "0.1.4", features = ["doc-all"] }
+
+```
+
 ---
 
 # Vacro Roadmap
@@ -319,10 +348,10 @@ _Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multip
 
 Licensed under either of
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 
