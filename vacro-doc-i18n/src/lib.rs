@@ -10,7 +10,7 @@ pub fn doc_i18n(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut attrs = take_attrs_mut(&mut item_ast);
     let doc_text = extract_doc_text(&attrs);
 
-    // 2) 语言模式（feature-only）
+    // 2) 语言模式（MVP：feature-only）
     let mode = lang_mode_from_features();
 
     // 3) 过滤/剥离
@@ -113,13 +113,13 @@ fn remove_doc_attrs(attrs: &mut Vec<Attribute>) {
 fn push_doc_attrs(attrs: &mut Vec<Attribute>, text: &str) {
     // 每一行生成一条 #[doc="..."]，空行也保留（保证段落结构）
     for line in text.split('\n') {
+        // 最后一行 split 会给出尾部空项，MVP：保留也无妨
         let lit = syn::LitStr::new(line, proc_macro2::Span::call_site());
         attrs.push(syn::parse_quote!(#[doc = #lit]));
     }
 }
 
 fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
-    // LangMode::All 直接原样返回（先别做 JS 结构优化）
     if matches!(mode, LangMode::All) {
         return input.to_string();
     }
@@ -127,16 +127,16 @@ fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
     let mut out = String::new();
     let mut in_block: Option<LangMode> = None;
 
-    for raw_line in input.lines() {
-        let line = raw_line;
+    for line in input.lines() {
+        let trimmed = line.trim();
 
-        // 1) block close
-        if in_block.is_some() && is_block_close(line) {
+        // 1. 优先处理块关闭
+        if in_block.is_some() && is_block_close(trimmed) {
             in_block = None;
             continue;
         }
 
-        // 2) if in block: emit or skip
+        // 2. 如果当前已经在块内，直接根据语言过滤输出
         if let Some(block_lang) = in_block {
             if block_lang == mode {
                 out.push_str(line);
@@ -145,17 +145,25 @@ fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
             continue;
         }
 
-        // 3) block open (must be standalone line)
-        if let Some(lang) = parse_block_open(line) {
+        // 3. 核心修复：检查是否是“单行块”（Inline）
+        if trimmed.starts_with("<div") && trimmed.contains("</div>") {
+            let replaced = replace_inline(line, mode);
+            if !replaced.is_empty() {
+                out.push_str(&replaced);
+                out.push('\n');
+            }
+            continue;
+        }
+
+        // 4. 检查是否是“多行块”的开始
+        if let Some(lang) = parse_block_open(trimmed) {
             in_block = Some(lang);
             continue;
         }
 
-        // 4) inline replace (may be multiple per line)
+        // 5. 普通文本行（或者含有多个复杂 inline 的行）
         let replaced = replace_inline(line, mode);
-        if !replaced.is_empty() {
-            out.push_str(&replaced);
-        }
+        out.push_str(&replaced);
         out.push('\n');
     }
 
@@ -202,7 +210,7 @@ fn replace_inline(line: &str, mode: LangMode) -> String {
 
         // 找到同一行内 close
         let Some(end_rel) = s[gt + 1..].find("</div>").map(|i| gt + 1 + i) else {
-            // 没有同一行闭合：不按 inline 处理
+            // 没有同一行闭合：不按 inline 处理（MVP：宽松降级）
             cursor = gt + 1;
             continue;
         };
