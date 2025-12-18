@@ -19,9 +19,11 @@ pub(crate) mod syntax;
 pub(crate) mod transform;
 
 use proc_macro::TokenStream;
+use vacro_doc_i18n::doc_i18n;
 
 use crate::impls::{bind_impl, define_impl};
 
+#[doc_i18n]
 /// <div class="doc-cn"> 即时解析宏：在现有的解析逻辑中快速消费 `TokenStream` </div>
 /// <div class="doc-en"> On-the-fly parsing macro: Quickly consume a `TokenStream` within existing parsing logic </div>
 ///
@@ -147,7 +149,7 @@ use crate::impls::{bind_impl, define_impl};
 pub fn bind(input: TokenStream) -> TokenStream {
     bind_impl(input)
 }
-
+#[doc_i18n]
 /// <div class="doc-cn"> 结构体定义宏：定义一个新的 AST 节点并自动实现 `syn::parse::Parse` </div>
 /// <div class="doc-en"> Struct definition macro: Define a new AST node and implement `syn::parse::Parse` automatically </div>
 ///
