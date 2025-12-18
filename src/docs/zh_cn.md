@@ -7,7 +7,6 @@
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
 [<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions/workflows/publish.yml)
 
-
 ## 简介
 
 **Vacro** 是一个专为 Rust 过程宏（Procedural Macros）设计的声明式解析库。
@@ -92,6 +91,17 @@ vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(a
 ```
 
 一行代码，涵盖了所有复杂的解析逻辑。
+
+## 安装
+
+要使用 Vacro, 请在你的 `Cargo.toml` 中添加:
+
+```toml
+[dependencies]
+vacro = { version = "0.1.4", features = ["doc-cn"] } # 启用中文文档
+```
+
+关于多语言支持，参见 [多语言支持](#多语言支持v014-起支持)
 
 ## 核心宏
 
@@ -251,6 +261,24 @@ fn main() -> Result<()> {
 }
 ```
 
+## 多语言支持（v0.1.4 起支持）
+
+从 `v0.1.4` 版本开始，`vacro` 通过 [`vacro-doc-i18n`](https://crates.io/crates/vacro-doc-i18n) 支持了多语言文档。你可以通过在 `Cargo.toml` 中切换 `feature` 来控制 IDE 代码提示（Hover）及生成的文档语言。
+
+在项目的依赖项中启用对应的语言特性。默认情况下（不开启任何 feature）显示为英文。
+
+```toml
+[dependencies]
+# 启用中文文档支持
+vacro = { version = "0.1.4", features = ["doc-cn"] }
+
+# 或者启用英文文档支持
+# vacro = { version = "0.1.4", features = ["doc-en"] }
+
+# 仅在发布docs.rs时启用（不做过滤）
+# vacro = { version = "0.1.4", features = ["doc-all"] }
+```
+
 ---
 
 # Vacro 开发路线图 (Roadmap)
@@ -316,10 +344,10 @@ _解决“多态解析”问题，即一个位置可能是多种类型之一。_
 
 Licensed under either of
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 

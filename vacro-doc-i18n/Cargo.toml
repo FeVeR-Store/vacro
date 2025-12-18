@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 
 description = "Doc i18n filter for Rustdoc/IDE via #[doc_i18n]."
 repository = "https://github.com/FeVeR-Store/vacro"
-readme = "vacro-doc-i18n/readme.md"
+readme = "readme.md"
 keywords = ["macros", "i18n", "rust-doc", "proc-macro"]
 categories = ["internationalization", "parsing"]
 documentation = "https://docs.rs/vacro"
