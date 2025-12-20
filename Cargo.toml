@@ -31,15 +31,12 @@ doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-all = ["vacro-doc-i18n/doc-all"]
 
 [workspace]
-members = ["vacro-doc-i18n"]
+members = ["vacro-doc-i18n", "vacro-report", "vacro-report-macro"]
 
 [workspace.dependencies]
 syn = { version = "2.0", features = ["full"] }
 proc-macro2 = "1.0"
 quote = "1.0"
-
-[workspace]
-members = ["vacro-report", "vacro-report-macro"]
 
 [dev-dependencies]
 trybuild = "1.0"
