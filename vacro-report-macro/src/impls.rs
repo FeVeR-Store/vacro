@@ -1,11 +1,12 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    ItemFn, Macro, parse_quote, parse_quote_spanned,
+    parse_quote, parse_quote_spanned,
     visit_mut::{self, VisitMut},
+    ItemFn, Macro,
 };
 
-pub fn trace_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn report_scope_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut f: ItemFn = parse_quote!(#item);
 
     // 改写函数体里的宏调用
@@ -38,7 +39,7 @@ impl TraceRewriter {
             let origin_span = last.ident.span();
 
             mac.path = parse_quote_spanned! {origin_span=>
-                ::vacro_trace_macro::parse_quote
+                ::vacro_report::__private::parse_quote
             };
         }
     }
@@ -54,5 +55,5 @@ impl VisitMut for TraceRewriter {
 
 pub fn parse_quote_impl(input: TokenStream) -> TokenStream {
     let input: TokenStream = input.into();
-    quote! {::vacro_trace::parse_quote_traced(::quote::quote! {#input})}.into()
+    quote! {::vacro_report::__private::parse_quote_traced(::quote::quote! {#input})}.into()
 }

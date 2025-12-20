@@ -1,5 +1,7 @@
 use rust_format::{Formatter, PrettyPlease};
 
+pub use vacro_report_macro::parse_quote;
+
 #[track_caller]
 pub fn parse_quote_traced<T: syn::parse::Parse>(tokens: proc_macro2::TokenStream) -> T {
     let actual = PrettyPlease::default()

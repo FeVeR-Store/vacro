@@ -12,18 +12,18 @@ proc-macro = true
 
 [features]
 default = []
+report = ["dep:vacro-report"]
 extra-traits = ["syn/extra-traits"]
 
 [workspace]
-members = ["vacro-trace", "vacro-trace-macro"]
+members = ["vacro-report", "vacro-report-macro"]
 
 [dev-dependencies]
 trybuild = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
 [dependencies]
-syn = { version = "2.0", features = ["full", "visit-mut"] }
+syn = { version = "2.0", features = ["full"] }
 proc-macro2 = "1.0"
 quote = "1.0"
-vacro-trace = { path = "./vacro-trace" }
-vacro-trace-macro = { path = "./vacro-trace-macro" }
+vacro-report = { path = "./vacro-report", optional = true }
