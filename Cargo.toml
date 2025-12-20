@@ -1,19 +1,42 @@
 [package]
 name = "vacro"
-version = "0.1.0"
-edition = "2024"
+version = "0.1.4"
+edition = "2021"
 authors = ["FeVeR renyis@foxmail.com"]
+license = "MIT OR Apache-2.0"
+
+description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
+repository = "https://github.com/FeVeR-Store/vacro"
+readme = "readme.md"
+keywords = ["macros", "parsing", "syn", "proc-macro"]
+categories = ["development-tools::procedural-macro-helpers", "parsing"]
+documentation = "https://docs.rs/vacro"
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["extra-traits", "doc-all"]
+rustdoc-args = [ "--html-in-header", "docs/doc-i18n.html" ]
 
 [lib]
 proc-macro = true
 
 [features]
 default = []
+
 report = ["dep:vacro-report"]
+
 extra-traits = ["syn/extra-traits"]
+
+doc-en = ["vacro-doc-i18n/doc-en"]
+doc-cn = ["vacro-doc-i18n/doc-cn"]
+doc-all = ["vacro-doc-i18n/doc-all"]
+
+[workspace]
+members = ["vacro-doc-i18n"]
+
+[workspace.dependencies]
+syn = { version = "2.0", features = ["full"] }
+proc-macro2 = "1.0"
+quote = "1.0"
 
 [workspace]
 members = ["vacro-report", "vacro-report-macro"]
@@ -23,7 +46,9 @@ trybuild = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
 [dependencies]
-syn = { version = "2.0", features = ["full"] }
-proc-macro2 = "1.0"
-quote = "1.0"
 vacro-report = { path = "./vacro-report", optional = true }
+
+vacro-doc-i18n = "0.1.0"
+syn = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }

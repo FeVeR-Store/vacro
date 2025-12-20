@@ -2,9 +2,10 @@
 
 **让 Rust 过程宏开发重归简单：声明式解析库**
 
-[](https://www.google.com/search?q=https://crates.io/crates/vacro)
-[](https://www.google.com/search?q=https://docs.rs/vacro)
-[](https://www.google.com/search?q=LICENSE)
+[<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions/workflows/publish.yml)
 
 ## 简介
 
@@ -91,6 +92,17 @@ vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(a
 
 一行代码，涵盖了所有复杂的解析逻辑。
 
+## 安装
+
+要使用 Vacro, 请在你的 `Cargo.toml` 中添加:
+
+```toml
+[dependencies]
+vacro = { version = "0.1.4", features = ["doc-cn"] } # 启用中文文档
+```
+
+关于多语言支持，参见 [多语言支持](#多语言支持v014-起支持)
+
 ## 核心宏
 
 Vacro 提供了两个核心宏，分别用于**定义结构体**和**即时解析**。
@@ -163,15 +175,15 @@ captured.ret;  // Option<Type>
 
 Vacro 的 DSL 设计直觉来源于 `macro_rules!` 和正则表达式。
 
-| 语法 | 类型 | 描述 | 解析结果类型 | 示例 |
-| :--- | :--- | :--- | :--- | :--- |
-| `literal` | 字面量 | 匹配并消费 Token (如 Rust 关键字/符号 `fn`, `->` 或自定义符号 `miku`, `<>`) | `!` | `fn`, `->`, `miku`, `<>` |
-| `#(x: T)` | 具名捕获 | 捕获一个特定的 `syn` 类型 | `T` (如 `Ident`, `Type`) | `#(name: Ident)` |
-| `#(x?: T)` | 具名可选 | 尝试解析，失败则跳过 | `Option<T>` | `#(name?: Ident)` |
-| `#(x*[sep]: T)` | 具名迭代 | 类似 `Punctuated`，按分隔符解析 | `Punctuated<T, sep>` | `#(args*: Ident)` |
-| `#(T)` | 匿名捕获 | 捕获一个特定的 `syn` 类型，但仅作验证（不返回） | `!` | `#(Ident)` |
-| `#(?: T)` | 匿名可选 | 仅作验证，失败则跳过 | `!` | `#(?: Ident)` |
-| `#(*[sep]: T)` | 匿名迭代 | 类似 `Punctuated`，按分隔符解析（仅作验证） | `!` | `#(*[,]: Ident)` |
+| 语法            | 类型     | 描述                                                                        | 解析结果类型             | 示例                     |
+| :-------------- | :------- | :-------------------------------------------------------------------------- | :----------------------- | :----------------------- |
+| `literal`       | 字面量   | 匹配并消费 Token (如 Rust 关键字/符号 `fn`, `->` 或自定义符号 `miku`, `<>`) | `!`                      | `fn`, `->`, `miku`, `<>` |
+| `#(x: T)`       | 具名捕获 | 捕获一个特定的 `syn` 类型                                                   | `T` (如 `Ident`, `Type`) | `#(name: Ident)`         |
+| `#(x?: T)`      | 具名可选 | 尝试解析，失败则跳过                                                        | `Option<T>`              | `#(name?: Ident)`        |
+| `#(x*[sep]: T)` | 具名迭代 | 类似 `Punctuated`，按分隔符解析                                             | `Punctuated<T, sep>`     | `#(args*: Ident)`        |
+| `#(T)`          | 匿名捕获 | 捕获一个特定的 `syn` 类型，但仅作验证（不返回）                             | `!`                      | `#(Ident)`               |
+| `#(?: T)`       | 匿名可选 | 仅作验证，失败则跳过                                                        | `!`                      | `#(?: Ident)`            |
+| `#(*[sep]: T)`  | 匿名迭代 | 类似 `Punctuated`，按分隔符解析（仅作验证）                                 | `!`                      | `#(*[,]: Ident)`         |
 
 ## 多态捕获 (Enum Parsing)
 
@@ -185,22 +197,89 @@ Vacro 支持解析“多态”结构，即输入流中的某个位置可能是�
 vacro::define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. 简写：匹配 Ident，生成 MyEnum::Ident(Ident)
-        Integer: syn::LitInt,             // 2. 别名：匹配 syn::LitInt，生成 MyEnum::Integer(syn::LitInt)
-        Function: fn #(name: Ident),      // 3. 模式：匹配模式（具名），生成 MyEnum::Function { name: Ident }
-        Tuple: (#(@: Ident), #(@: Expr)), // 4. 模式：匹配模式（行内），生成 MyEnum::Tuple(Ident, Expr)
+        syn::Type,                        // 2. 简写：匹配 syn::Type，生成 MyEnum::Type(syn::Type)
+        Integer: syn::LitInt,             // 3. 别名：匹配 syn::LitInt，生成 MyEnum::Integer(syn::LitInt)
+        Function: fn #(name: Ident),      // 4. 模式：匹配模式（具名），生成 MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 5. 模式：匹配模式（行内），生成 MyEnum::Tuple(Ident, Expr)
     })
 );
 
 // 宏会自动生成如下 Enum 定义：
 // pub enum MyEnum {
 //     Ident(Ident),
+//     Type(syn::Type),
 //     Integer(syn::LitInt),
 //     Function { name: Ident },
 //     Tuple(Ident, Expr)
 // }
 ```
 
------
+## 端到端示例
+
+这是一个演示如何解析自定义“服务定义”语法的完整示例。
+
+**目标语法:**
+
+```text
+service MyService {
+    version: "1.0",
+    active: true
+}
+```
+
+**Implementation / 实现代码:**
+
+```rust
+use syn::{parse::Parse, parse::ParseStream, Ident, LitStr, LitBool, Token, Result, parse_quote};
+use vacro::define;
+// 1. 使用 vacro DSL 定义 AST
+define!(ServiceDef:
+    service                   // Keyword "service"
+    #(name: Ident)            // Captured Service Name
+    {                         // Braced block
+        version : #(ver: LitStr) ,  // "version" ":" <string> ","
+        active : #(is_active: LitBool) // "active" ":" <bool>
+    }
+);
+// 2. 模拟解析（在真实宏中，这来自输入的 TokenStream）
+fn main() -> Result<()> {
+    // 模拟输入: service MyService { version: "1.0", active: true }
+    let input: proc_macro2::TokenStream = quote::quote! {
+        service MyService {
+            version: "1.0",
+            active: true
+        }
+    };
+    // 解析它！
+    let service: ServiceDef = syn::parse2(input)?;
+    // 3. 访问字段
+    assert_eq!(service.name.to_string(), "MyService");
+    assert_eq!(service.ver.value(), "1.0");
+    assert!(service.is_active.value);
+    println!("Successfully parsed service: {}", service.name);
+    Ok(())
+}
+```
+
+## 多语言支持（v0.1.4 起支持）
+
+从 `v0.1.4` 版本开始，`vacro` 通过 [`vacro-doc-i18n`](https://crates.io/crates/vacro-doc-i18n) 支持了多语言文档。你可以通过在 `Cargo.toml` 中切换 `feature` 来控制 IDE 代码提示（Hover）及生成的文档语言。
+
+在项目的依赖项中启用对应的语言特性。默认情况下（不开启任何 feature）显示为英文。
+
+```toml
+[dependencies]
+# 启用中文文档支持
+vacro = { version = "0.1.4", features = ["doc-cn"] }
+
+# 或者启用英文文档支持
+# vacro = { version = "0.1.4", features = ["doc-en"] }
+
+# 仅在发布docs.rs时启用（不做过滤）
+# vacro = { version = "0.1.4", features = ["doc-all"] }
+```
+
+---
 
 # Vacro 开发路线图 (Roadmap)
 
@@ -210,22 +289,22 @@ vacro::define!(MyPoly:
 
 ### 1\. 完善文档 (Documentation)
 
-  - [ ] **API 文档化**：为 `Pattern`、`BindInput` 和 `Keyword` 等核心结构添加详细的 Rustdoc 注释，确保 `docs.rs` 上的可读性。
-  - [ ] **README 增强**：整合最新的 README，添加 `examples/` 目录，并提供基础的实战案例（如解析简单的结构体和函数）。
-  - [ ] **错误报告优化**：优化 `syn::Error` 的生成，确保当 DSL 语法错误（如括号不匹配）时，用户能收到清晰的编译器报错，而不是内部 panic。
+- [x] **API 文档化**：为 `Pattern`、`BindInput` 和 `Keyword` 等核心结构添加详细的 Rustdoc 注释，确保 `docs.rs` 上的可读性。
+- [x] **README 增强**：整合最新的 README，添加 `examples/` 目录，并提供基础的实战案例（如解析简单的结构体和函数）。
+- [ ] **错误报告优化**：优化 `syn::Error` 的生成，确保当 DSL 语法错误（如括号不匹配）时，用户能收到清晰的编译器报错，而不是内部 panic。
 
 ### 2\. 完善测试体系 (Testing)
 
-  - [ ] **单元测试 (Unit Tests)**：
-      - [ ] 覆盖 `inject_lookahead` 的边缘情况（递归 Group、连续 Literals 等）。
-      - [ ] 测试 `Keyword` 解析器处理特殊符号（`->`、`=>`、`<`）及自定义关键字的能力。
-  - [ ] **UI 测试 (Compile-fail Tests)**：
-      - [ ] **集成 `trybuild`**。
-      - [ ] 编写“反向测试用例”：验证当输入不符合预期类型时（例如期望 `Ident` 却提供了 `LitStr`），宏能否正确拦截并报告错误。
-  - [ ] **集成测试 (Integration Tests)**：
-      - [ ] 模拟真实场景，验证 `define!` 生成的结构体能否正确处理复杂的 TokenStream。
+- [x] **单元测试 (Unit Tests)**：
+  - [x] 覆盖 `inject_lookahead` 的边缘情况（递归 Group、连续 Literals 等）。
+  - [x] 测试 `Keyword` 解析器处理特殊符号（`->`、`=>`、`<`）及自定义关键字的能力。
+- [ ] **UI 测试 (Compile-fail Tests)**：
+  - [ ] **集成 `trybuild`**。
+  - [ ] 编写“反向测试用例”：验证当输入不符合预期类型时（例如期望 `Ident` 却提供了 `LitStr`），宏能否正确拦截并报告错误。
+- [x] **集成测试 (Integration Tests)**：
+  - [x] 模拟真实场景，验证 `define!` 生成的结构体能否正确处理复杂的 TokenStream。
 
------
+---
 
 ## 🚀 阶段二：架构革新 (v0.2.x) - 核心增强
 
@@ -235,21 +314,21 @@ vacro::define!(MyPoly:
 
 #### A. 关联/结构化捕获 (Associative/Structural Capture)
 
-*解决“结构体数组 (AoS)”问题，即一次性捕获聚合的结构，而不是分散的字段列表。*
+_解决“结构体数组 (AoS)”问题，即一次性捕获聚合的结构，而不是分散的字段列表。_
 
-  - [ ] **语法实现**：支持 `#(~name...: ...)` 语法来标记聚合捕获。
-  - [ ] **元组支持**：实现 `#(~items*: #(@:Type) #(@:Ident))`，以生成 `Vec<(Type, Ident)>`。
-  - [ ] **结构体支持**：支持内部具名捕获，以生成匿名结构体列表。
+- [ ] **语法实现**：支持 `#(~name...: ...)` 语法来标记聚合捕获。
+- [ ] **元组支持**：实现 `#(~items*: #(@:Type) #(@:Ident))`，以生成 `Vec<(Type, Ident)>`。
+- [ ] **结构体支持**：支持内部具名捕获，以生成匿名结构体列表。
 
 #### B. 多态捕获 (Polymorphic Capture / Enum Parsing)
 
-*解决“多态解析”问题，即一个位置可能是多种类型之一。*
+_解决“多态解析”问题，即一个位置可能是多种类型之一。_
 
-  - [x] **语法实现**：支持 `#(name: EnumName { VariantA, VariantB })` 语法。
-  - [x] **自动定义**：如果 `EnumName` 未定义，自动生成包含 `VariantA(TypeA)`、`VariantB(TypeB)` 的枚举定义。
-  - [x] **分支解析**：生成基于 `input.fork()` 或 `peek` 的尝试解析逻辑，自动处理失败时的回溯（backtracking）。
+- [x] **语法实现**：支持 `#(name: EnumName { VariantA, VariantB })` 语法。
+- [x] **自动定义**：如果 `EnumName` 未定义，自动生成包含 `VariantA(TypeA)`、`VariantB(TypeB)` 的枚举定义。
+- [x] **分支解析**：生成基于 `input.fork()` 或 `peek` 的尝试解析逻辑，自动处理失败时的回溯（backtracking）。
 
------
+---
 
 ## 🛠️ 阶段三：生态与工具 (v0.3.x) - 开发者体验
 
@@ -257,10 +336,23 @@ vacro::define!(MyPoly:
 
 ### 4\. 工具链开发 (Toolchain)
 
-  - [ ] 敬请期待
+- [ ] 敬请期待
 
------
+---
 
 ## License
 
-MIT
+Licensed under either of
+
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.

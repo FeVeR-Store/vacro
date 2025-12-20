@@ -2,9 +2,10 @@
 
 **Making Rust Procedural Macro Development Simple Again: A Declarative Parsing Library**
 
-[](https://www.google.com/search?q=https://crates.io/crates/vacro)
-[](https://www.google.com/search?q=https://docs.rs/vacro)
-[](https://www.google.com/search?q=LICENSE)
+[<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
+[<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions/workflows/publish.yml)
 
 ## Introduction
 
@@ -90,6 +91,17 @@ vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(a
 ```
 
 One line of code covers all complex parsing logic.
+
+## Installation
+
+To use Vacro in your project, add the following to your `Cargo.toml`:
+
+```toml
+[dependencies]
+vacro = { version = "0.1.4", features = ["doc-en"] } # enable English docs
+```
+
+About Multi Language Support, see [Multi Language Support](#multi-language-support-since-v014)
 
 ## Core Macros
 
@@ -188,19 +200,87 @@ Syntax: `#(name: EnumName { Variant1, Variant2: Type, Variant3: Pattern })`
 vacro::define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. Shorthand: Match Ident, produces MyEnum::Ident(Ident)
-        Integer: syn::LitInt,             // 2. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
-        Function: fn #(name: Ident),      // 3. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
-        Tuple: (#(@: Ident), #(@: Expr)), // 4. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
+        syn::Type,                        // 2. Shorthand: Match Type, produces MyEnum::Type(syn::Type)
+        Integer: syn::LitInt,             // 3. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
+        Function: fn #(name: Ident),      // 4. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 5. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
     })
 );
 
 // The macro automatically generates the Enum definition:
 // pub enum MyEnum {
 //     Ident(Ident),
+//     Type(syn::Type),
 //     Integer(syn::LitInt),
 //     Function { name: Ident },
 //     Tuple(Ident, Expr)
 // }
+```
+
+## End-to-End Example
+
+Here is a complete example showing how to parse a custom "Service Definition" syntax.
+
+**Target Syntax**
+
+```text
+service MyService {
+    version: "1.0",
+    active: true
+}
+```
+
+**Implementation:**
+
+```rust
+use syn::{parse::Parse, parse::ParseStream, Ident, LitStr, LitBool, Token, Result, parse_quote};
+use vacro::define;
+// 1. Define the AST using vacro DSL
+define!(ServiceDef:
+    service                   // Keyword "service"
+    #(name: Ident)            // Captured Service Name
+    {                         // Braced block
+        version : #(ver: LitStr) ,  // "version" ":" <string> ","
+        active : #(is_active: LitBool) // "active" ":" <bool>
+    }
+);
+// 2. Simulate parsing (In a real macro, this comes from the input TokenStream)
+fn main() -> Result<()> {
+    // Mock input: service MyService { version: "1.0", active: true }
+    let input: proc_macro2::TokenStream = quote::quote! {
+        service MyService {
+            version: "1.0",
+            active: true
+        }
+    };
+    // Parse it! / 解析它！
+    let service: ServiceDef = syn::parse2(input)?;
+    // 3. Access the fields
+    assert_eq!(service.name.to_string(), "MyService");
+    assert_eq!(service.ver.value(), "1.0");
+    assert!(service.is_active.value);
+    println!("Successfully parsed service: {}", service.name);
+    Ok(())
+}
+```
+
+## Multi-language Support (since v0.1.4)
+
+Starting from version `v0.1.4`, `vacro` provides support for multi-language documentation through [`vacro-doc-i18n`](https://crates.io/crates/vacro-doc-i18n). You can control the language of IDE tooltips (Hover) and generated documentation by toggling `features` in your `Cargo.toml`.
+
+Simply enable the corresponding language feature in your project's dependencies. By default (when no features are enabled), the documentation is displayed in English.
+
+```toml
+[dependencies]
+# Enable English documentation support
+vacro = { version = "0.1.4", features = ["doc-en"] }
+
+# Or enable Chinese documentation support
+# vacro = { version = "0.1.4", features = ["doc-cn"] }
+
+# Only used when publishing to docs.rs (retains all languages without filtering)
+# vacro = { version = "0.1.4", features = ["doc-all"] }
+
 ```
 
 ---
@@ -213,20 +293,20 @@ vacro::define!(MyPoly:
 
 ### 1. Improve Documentation (Documentation)
 
-- [ ] **API Documentation**: Add detailed Rustdoc comments to core structures like `Pattern`, `BindInput`, and `Keyword` to ensure readability on `docs.rs`.
-- [ ] **README Enhancement**: Integrate the latest README, add an `examples/` directory, and provide basic real-world examples (such as parsing simple structs and functions).
+- [x] **API Documentation**: Add detailed Rustdoc comments to core structures like `Pattern`, `BindInput`, and `Keyword` to ensure readability on `docs.rs`.
+- [x] **README Enhancement**: Integrate the latest README, add an `examples/` directory, and provide basic real-world examples (such as parsing simple structs and functions).
 - [ ] **Error Reporting Optimization**: Optimize `syn::Error` generation to ensure that when DSL syntax errors occur (e.g., mismatched parentheses), users receive clear compiler error messages instead of internal panics.
 
 ### 2. Comprehensive Testing System (Testing)
 
-- [ ] **Unit Tests**:
-  - [ ] Cover edge cases in `inject_lookahead` (recursive Groups, consecutive Literals, etc.).
-  - [ ] Test the `Keyword` parser's ability to handle special symbols (`->`, `=>`, `<`) and custom keywords.
+- [x] **Unit Tests**:
+  - [x] Cover edge cases in `inject_lookahead` (recursive Groups, consecutive Literals, etc.).
+  - [x] Test the `Keyword` parser's ability to handle special symbols (`->`, `=>`, `<`) and custom keywords.
 - [ ] **UI Tests (Compile-fail Tests)**:
   - [ ] **Integrate `trybuild`**.
   - [ ] Write "negative test cases": Verify that the macro correctly intercepts and reports errors when input types do not match expectations (e.g., providing a `LitStr` when an `Ident` is expected).
-- [ ] **Integration Tests**:
-  - [ ] Simulate real-world scenarios to verify that structs generated by `define!` can correctly handle complex TokenStreams.
+- [x] **Integration Tests**:
+  - [x] Simulate real-world scenarios to verify that structs generated by `define!` can correctly handle complex TokenStreams.
 
 ---
 
@@ -266,4 +346,17 @@ _Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multip
 
 ## License
 
-MIT
+Licensed under either of
+
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.

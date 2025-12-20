@@ -1,0 +1,29 @@
+[package]
+name = "vacro-doc-i18n"
+version = "0.1.0"
+edition = "2021"
+authors = ["FeVeR renyis@foxmail.com"]
+license = "MIT OR Apache-2.0"
+
+description = "Doc i18n filter for Rustdoc/IDE via #[doc_i18n]."
+repository = "https://github.com/FeVeR-Store/vacro"
+readme = "readme.md"
+keywords = ["macros", "i18n", "rust-doc", "proc-macro"]
+categories = ["internationalization", "parsing"]
+documentation = "https://docs.rs/vacro"
+
+[lib]
+proc-macro = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+doc-en = []
+doc-cn = []
+doc-all = []
+
+[dependencies]
+syn = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }

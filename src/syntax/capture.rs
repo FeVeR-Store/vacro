@@ -1,11 +1,11 @@
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Path, Token, Type, braced, bracketed, parenthesized,
-    parse::{Parse, ParseStream, Parser, discouraged::Speculative},
+    braced, bracketed, parenthesized,
+    parse::{discouraged::Speculative, Parse, ParseStream, Parser},
     parse_quote,
     spanned::Spanned,
-    token,
+    token, Ident, Path, Token, Type,
 };
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
         keyword::Keyword,
         node::{Pattern, PatternKind},
     },
-    syntax::context::ParseContext,
+    syntax::context::{CaptureMode, ParseContext},
 };
 
 /// 捕获 #(...)
@@ -49,28 +49,29 @@ impl Capture {
             })
         } else if lookahead.peek(Ident) || lookahead.peek(Token![@]) {
             // 具名捕获 <name: Capture> 与 行内捕获 <@: Capture> 及变体
+
             let i = ctx.inline_counter;
-            let inline_mode = ctx.inline_mode;
             let binder = if lookahead.peek(Ident) {
                 let ident: Ident = content.parse()?;
-                if i != 0 {
+                // 如果是行内捕获，那么报错
+                if ctx.capture_mode == CaptureMode::Inline {
                     return Err(syn::Error::new(
                         ident.span(),
                         "unexpected named capture; previous captures were inline",
                     ));
                 }
-                if !inline_mode {
-                    ctx.inline_mode = false;
-                }
+                ctx.capture_mode = CaptureMode::Named;
                 Binder::Named(ident)
             } else {
                 let _at = content.parse::<Token![@]>()?;
-                if inline_mode {
+                // 如果是命名捕获，那么报错
+                if ctx.capture_mode == CaptureMode::Named {
                     return Err(syn::Error::new(
                         _at.span(),
                         "unexpected inline capture; previous captures were named",
                     ));
                 }
+                ctx.capture_mode = CaptureMode::Inline;
                 ctx.inline_counter += 1;
                 Binder::Inline(i)
             };
@@ -276,15 +277,15 @@ impl Parse for EnumVariant {
         // 可能是Type或TypeName
         let fork = input.fork();
         // 尝试解析为Type，如果解析后是','或空，则结束
-        if let Ok(ty) = fork.parse::<Type>()
-            && (fork.is_empty() || fork.peek(Token![,]))
-        {
-            input.advance_to(&fork);
-            // 如果是Type，那么必须是可简写的模式，可解析为Path
-            let path: Path = parse_quote!(#ty);
-            let ident = path.segments.last().unwrap();
-            let ident = parse_quote!(#ident);
-            return Ok(EnumVariant::Type { ident, ty });
+        if let Ok(ty) = fork.parse::<Type>() {
+            if fork.is_empty() || fork.peek(Token![,]) {
+                input.advance_to(&fork);
+                // 如果是Type，那么必须是可简写的模式，可解析为Path
+                let path: Path = parse_quote!(#ty);
+                let ident = path.segments.last().unwrap();
+                let ident = parse_quote!(#ident);
+                return Ok(EnumVariant::Type { ident, ty });
+            }
         }
 
         let ident: Ident = input.parse()?;

@@ -149,4 +149,21 @@ mod tests {
         assert!(init_code.contains("let mut opt_val : u32 ="));
         assert!(init_code.contains("Option :: None"));
     }
+
+    #[test]
+    fn test_generate_empty_capture() {
+        let fields = vec![];
+        let (_, struct_def, struct_expr, _) = generate_output(&fields, Some(parse_quote!(MyEmpty)));
+
+        let def_str = struct_def.to_string();
+        let expr_str = struct_expr.to_string();
+
+        // 期望: struct MyEmpty {} 或 struct MyEmpty { }
+        assert!(def_str.contains("struct MyEmpty"));
+        // 确保没有多余的逗号
+        assert!(!def_str.contains(", }"));
+
+        // 期望: MyEmpty {}
+        assert!(expr_str.contains("MyEmpty"));
+    }
 }
