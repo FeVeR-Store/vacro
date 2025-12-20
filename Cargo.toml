@@ -21,13 +21,17 @@ proc-macro = true
 
 [features]
 default = []
+
+report = ["dep:vacro-report"]
+
 extra-traits = ["syn/extra-traits"]
+
 doc-en = ["vacro-doc-i18n/doc-en"]
 doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-all = ["vacro-doc-i18n/doc-all"]
 
 [workspace]
-members = ["vacro-doc-i18n"]
+members = ["vacro-doc-i18n", "vacro-report", "vacro-report-macro"]
 
 [workspace.dependencies]
 syn = { version = "2.0", features = ["full"] }
@@ -39,6 +43,8 @@ trybuild = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
 [dependencies]
+vacro-report = { path = "./vacro-report", optional = true }
+
 vacro-doc-i18n = "0.1.0"
 syn = { workspace = true }
 proc-macro2 = { workspace = true }
