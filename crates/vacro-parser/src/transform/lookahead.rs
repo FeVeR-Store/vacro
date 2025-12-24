@@ -106,7 +106,7 @@ mod tests {
         let input = quote!(#(x: Ident));
 
         let capture: Capture = parse_capture(input, ctx).unwrap();
-        let pattern_capture = PatternKind::Capture(capture);
+        let pattern_capture = PatternKind::Capture(Box::new(capture));
         let pattern_literal = PatternKind::Literal(Keyword::Rust(",".to_string()));
 
         // Case 1: Capture 后面跟 Literal
@@ -126,15 +126,15 @@ mod tests {
 
         assert_eq!(optimized.len(), 2);
         // 检查第一个 Capture 是否被注入了 lookahead
-        if let PatternKind::Capture(Capture {
-            edge: Some(edge), ..
-        }) = &optimized[0].kind
-        {
-            if let Keyword::Rust(s) = edge {
-                assert_eq!(s, ",");
-            } else {
+        if let PatternKind::Capture(cap) = &optimized[0].kind {
+            let Capture {
+                edge: Some(Keyword::Rust(s)),
+                ..
+            } = *cap.clone()
+            else {
                 panic!("Wrong lookahead type");
-            }
+            };
+            assert_eq!(s, ",");
         } else {
             panic!("Lookahead not injected");
         }
@@ -153,9 +153,10 @@ mod tests {
             },
         ];
         let optimized_consecutive = inject_lookahead(patterns_consecutive);
-        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_consecutive[0].kind
-        {
-            panic!("Should not inject lookahead when followed by another capture");
+        if let PatternKind::Capture(cap) = &optimized_consecutive[0].kind {
+            if let Capture { edge: Some(_), .. } = **cap {
+                panic!("Should not inject lookahead when followed by another capture");
+            };
         }
 
         // Case 3: Capture 在末尾 (不应注入)
@@ -165,8 +166,10 @@ mod tests {
             meta: None,
         }];
         let optimized_end = inject_lookahead(patterns_end);
-        if let PatternKind::Capture(Capture { edge: Some(_), .. }) = &optimized_end[0].kind {
-            panic!("Should not inject lookahead at end of stream");
+        if let PatternKind::Capture(cap) = &optimized_end[0].kind {
+            if let Capture { edge: Some(_), .. } = **cap {
+                panic!("Should not inject lookahead at end of stream");
+            };
         }
     }
     #[test]
@@ -182,7 +185,7 @@ mod tests {
 
         let patterns = vec![
             Pattern {
-                kind: PatternKind::Capture(cap_a),
+                kind: PatternKind::Capture(Box::new(cap_a)),
                 span: Span::call_site(),
                 meta: None,
             },
@@ -192,7 +195,7 @@ mod tests {
                 meta: None,
             },
             Pattern {
-                kind: PatternKind::Capture(cap_b),
+                kind: PatternKind::Capture(Box::new(cap_b)),
                 span: Span::call_site(),
                 meta: None,
             },
@@ -237,7 +240,7 @@ mod tests {
 
         let patterns = vec![
             Pattern {
-                kind: PatternKind::Capture(cap_a),
+                kind: PatternKind::Capture(Box::new(cap_a)),
                 span: Span::call_site(),
                 meta: None,
             },

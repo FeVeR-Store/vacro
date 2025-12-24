@@ -12,15 +12,10 @@ pub struct ParseContext {
 }
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
-#[derive(Clone, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub enum CaptureMode {
     Inline,
     Named,
+    #[default]
     Unknown,
-}
-
-impl Default for CaptureMode {
-    fn default() -> Self {
-        CaptureMode::Unknown
-    }
 }

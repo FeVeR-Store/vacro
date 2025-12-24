@@ -190,7 +190,7 @@ impl Compiler {
                             ..
                         } => {
                             let (capture_init, _, _, capture_list) =
-                                generate_output(&fields, None);
+                                generate_output(fields, None);
                             let pattern_tokens = self.compile_pattern(pattern);
                             let enum_expr_body = capture_list.iter().collect::<Punctuated<_,Token![,]>>();
                             let enum_expr = if *named { quote! {{#enum_expr_body}}} else {quote! {(#enum_expr_body)}};

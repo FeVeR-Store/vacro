@@ -168,10 +168,10 @@ impl Matcher {
                 return Ok(matcher);
             }
             // 如果是 #(...)，则解析为 Capture
-            let capture = Capture::parse(&input, ctx)?;
+            let capture = Capture::parse(input, ctx)?;
             let span = capture.span;
             let pattern = Pattern {
-                kind: PatternKind::Capture(capture),
+                kind: PatternKind::Capture(Box::new(capture)),
                 span,
                 meta: None,
             };
@@ -205,7 +205,7 @@ impl Matcher {
                                         MatcherKind::SynType(ty.clone())
                                     }
                                     EnumVariant::Capture { pattern, .. } => {
-                                        MatcherKind::Nested(vec![pattern.clone()])
+                                        MatcherKind::Nested(vec![*pattern.clone()])
                                     }
                                 },
                             },
@@ -251,7 +251,7 @@ impl Matcher {
             match cap.kind {
                 MatcherKind::SynType(_) | MatcherKind::Enum { .. } => Err(syn::Error::new(
                     input.span(),
-                    format!("Unexpected '{}'", input.to_string()),
+                    format!("Unexpected '{}'", input),
                 )),
                 MatcherKind::Nested(mut pattern_list) => {
                     let pattern: Pattern = Pattern::parse(input)?;
@@ -309,7 +309,7 @@ impl Parse for EnumVariant {
             while !fork.peek(Token![,]) && !fork.is_empty() {
                 tokens.append(fork.parse::<TokenTree>()?);
             }
-            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(&input) };
+            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(input) };
             let pattern = parser.parse2(tokens)?;
             input.advance_to(&fork);
             let captures = pattern.collect_captures();
@@ -322,7 +322,7 @@ impl Parse for EnumVariant {
                 ident,
                 named,
                 fields: captures,
-                pattern,
+                pattern: Box::new(pattern),
             })
         }
     }

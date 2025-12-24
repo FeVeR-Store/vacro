@@ -68,7 +68,7 @@ pub enum EnumVariant {
         ident: Type,
         named: bool,
         fields: Vec<FieldDef>,
-        pattern: Pattern,
+        pattern: Box<Pattern>,
     },
 }
 
@@ -143,9 +143,9 @@ impl Matcher {
     fn collect_captures(&self, binder: &Binder) -> Vec<FieldDef> {
         match &self.kind {
             MatcherKind::SynType(ty) | MatcherKind::Enum { enum_name: ty, .. } => {
-                generate_captures(ty, &binder)
+                generate_captures(ty, binder)
                     .map(|def| vec![def])
-                    .unwrap_or(vec![])
+                    .unwrap_or_default()
                 // 处理叶子节点：只有 Named 和 Inline 产生字段
             }
 
