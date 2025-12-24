@@ -1,7 +1,7 @@
 use proc_macro2::Span;
 use syn::{
-    Ident, Token, Type,
     token::{self},
+    Ident, Token, Type,
 };
 
 use crate::ast::{keyword::Keyword, node::Pattern};
@@ -187,9 +187,8 @@ mod tests {
     use proc_macro2::TokenStream;
     use quote::quote;
     use syn::{
-        Result,
         parse::{ParseStream, Parser},
-        parse_quote,
+        parse_quote, Result,
     };
     // --- 辅助函数：用于简化断言 ---
 
@@ -707,10 +706,9 @@ mod tests {
         parse_capture(input, ctx).unwrap();
         let input = quote! {#(@: Ident)};
         let err = parse_capture(input, ctx).unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("unexpected inline capture; previous captures were named")
-        );
+        assert!(err
+            .to_string()
+            .contains("unexpected inline capture; previous captures were named"));
 
         // 重置
         let ctx = &mut ParseContext::default();
@@ -719,10 +717,9 @@ mod tests {
         parse_capture(input, ctx).unwrap();
         let input = quote! {#(named: Ident)};
         let err = parse_capture(input, ctx).unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("unexpected named capture; previous captures were inline")
-        );
+        assert!(err
+            .to_string()
+            .contains("unexpected named capture; previous captures were inline"));
     }
 
     #[test]

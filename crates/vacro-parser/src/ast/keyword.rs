@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::{Punct, TokenStream};
-use quote::{ToTokens, TokenStreamExt, format_ident, quote};
+use quote::{format_ident, quote, ToTokens, TokenStreamExt};
 use syn::Ident;
 
 #[derive(Clone)]
@@ -230,8 +230,8 @@ mod tests {
     use proc_macro2::Punct;
     use quote::format_ident;
     use syn::{
-        Result, Token,
         parse::{ParseStream, Parser},
+        Result, Token,
     };
 
     use crate::syntax::{context::ParseContext, keyword};

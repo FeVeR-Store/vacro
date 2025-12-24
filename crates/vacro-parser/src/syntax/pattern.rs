@@ -1,12 +1,12 @@
 use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Result, Token, braced, bracketed,
+    braced, bracketed,
     ext::IdentExt,
     parenthesized,
     parse::{ParseStream, Parser},
     spanned::Spanned,
-    token,
+    token, Ident, Result, Token,
 };
 
 use crate::{
