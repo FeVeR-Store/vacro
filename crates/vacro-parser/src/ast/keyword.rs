@@ -235,7 +235,7 @@ mod tests {
 
     use super::*;
 
-    fn parse_keyword<'a>(tokens: TokenStream, ctx: &mut ParseContext) -> Result<Keyword> {
+    fn parse_keyword(tokens: TokenStream, ctx: &mut ParseContext) -> Result<Keyword> {
         let parser = move |input: ParseStream| -> Result<Keyword> { Keyword::parse(input, ctx) };
         parser.parse2(tokens)
     }
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn test_rust_keywords() {
         let ctx = &mut ParseContext::default();
-        for tokens in vec![quote! { fn }, quote! { let }, quote! { if }] {
+        for tokens in [quote! { fn }, quote! { let }, quote! { if }] {
             let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
 
@@ -257,7 +257,12 @@ mod tests {
     #[test]
     fn test_custom_keywords() {
         let ctx = &mut ParseContext::default();
-        for tokens in vec![quote! { miku }, quote! { teto }, quote! { len }] {
+        for tokens in [
+            quote! { miku },
+            quote! { rin },
+            quote! { len },
+            quote! { teto },
+        ] {
             let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
             assert_eq!(
@@ -274,7 +279,7 @@ mod tests {
     #[test]
     fn test_rust_punctuation() {
         let ctx = &mut ParseContext::default();
-        for tokens in vec![quote! { ! }, quote! { ? }, quote! { . }] {
+        for tokens in [quote! { ! }, quote! { ? }, quote! { . }] {
             let keyword: Keyword = parse_keyword(tokens.clone(), ctx).unwrap();
             let keyword_tokens = quote! {#keyword};
             assert_eq!(keyword, Keyword::Rust(tokens.clone().to_string()));
@@ -287,7 +292,7 @@ mod tests {
     #[test]
     fn test_custom_punctuation() {
         let ctx = &mut ParseContext::default();
-        for tokens in vec![quote! { <> }, quote! { ?! }, quote! { ~~> }] {
+        for tokens in [quote! { <> }, quote! { ?! }, quote! { ~~> }] {
             // 与上面的解析不同，自定义符号的解析需要手动搜集，这里使用了pattern处的代码，但有修改
             // 因为quote会自动分词，'<>' -> '< >'，所以不再检查Spacing
             let parser = |input: ParseStream| -> Result<Keyword> {
@@ -327,7 +332,7 @@ mod tests {
     fn test_parse_complex_operators() {
         let ctx = &mut ParseContext::default();
         // 测试 Rust 的多字符运算符，确保它们被识别为单一的 Keyword::Rust
-        let ops: Vec<_> = vec!["->", "=>", "::", "..", "..=", "&&", "||", "<<", ">>"];
+        let ops = ["->", "=>", "::", "..", "..=", "&&", "||", "<<", ">>"];
 
         for op in ops {
             // 注意：quote! 会自动分词，所以这里直接测试字符串解析逻辑可能更准，
@@ -344,7 +349,7 @@ mod tests {
     fn test_ident_collision() {
         let ctx = &mut ParseContext::default();
         // 测试看似像关键字但实际上是自定义标识符的情况
-        let inputs: Vec<_> = vec!["match_", "fn_name", "structA"]
+        let inputs: Vec<_> = ["match_", "fn_name", "structA"]
             .iter()
             .map(|op| TokenStream::from_str(op).unwrap())
             .collect();
