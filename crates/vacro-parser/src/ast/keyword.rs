@@ -44,11 +44,8 @@ impl Keyword {
         }
     }
     pub fn define(&self, map: &mut KeywordMap) {
-        match self {
-            Keyword::Custom { content, .. } => {
-                map.0.insert(content.to_string(), self.get_definition());
-            }
-            _ => (),
+        if let Keyword::Custom { content, .. } = self {
+            map.0.insert(content.to_string(), self.get_definition());
         }
     }
 }
