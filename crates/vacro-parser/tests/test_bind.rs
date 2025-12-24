@@ -1,6 +1,6 @@
 use quote::quote;
 use syn::{Ident, LitInt, Type};
-use vacro::bind;
+use vacro_parser::bind;
 
 // 测试最基础的具名捕获
 #[test]

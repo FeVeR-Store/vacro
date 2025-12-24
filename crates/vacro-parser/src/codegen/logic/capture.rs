@@ -1,6 +1,6 @@
 use proc_macro2::{Delimiter, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Token, parse_quote, punctuated::Punctuated, token::Comma};
+use syn::{parse_quote, punctuated::Punctuated, token::Comma, Token};
 
 use crate::{
     ast::{

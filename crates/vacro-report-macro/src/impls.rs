@@ -55,5 +55,9 @@ impl VisitMut for TraceRewriter {
 
 pub fn parse_quote_impl(input: TokenStream) -> TokenStream {
     let input: TokenStream = input.into();
-    quote! {::vacro_report::__private::parse_quote_traced(::quote::quote! {#input})}.into()
+    if cfg!(feature = "standalone") {
+        quote! {::vacro_report::__private::parse_quote(::quote::quote! {#input})}.into()
+    } else {
+        quote! {::vacro::report::__private::parse_quote_traced(::quote::quote! {#input})}.into()
+    }
 }

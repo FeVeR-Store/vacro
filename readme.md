@@ -1,348 +1,103 @@
 # Vacro
 
-**Making Rust Procedural Macro Development Simple Again: A Declarative Parsing Library**
+<div align="center">
+
+**The Progressive DevX Framework for Rust Procedural Macros**
 
 [<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
 [<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
 [<img alt="build status" src="https://img.shields.io/github/actions/workflow/status/FeVeR-Store/vacro/publish.yml?style=for-the-badge" height="20">](https://github.com/FeVeR-Store/vacro/actions/workflows/publish.yml)
 
-## Introduction
+[English](./README.md) | [简体中文](./README_CN.md)
 
-**Vacro** is a declarative parsing library designed specifically for Rust Procedural Macros.
+</div>
 
-If you are tired of writing verbose imperative code when using `syn` (countless `input.parse()?` calls, manual `lookahead`, complex `Punctuated` handling), then **Vacro** is for you.
+---
 
-**Core Philosophy: Standing on the shoulders of giants.**
+## The Philosophy
 
-Vacro does not invent new AST types. All parsing results remain standard `syn::Ident`, `syn::Type`, `syn::Expr`, etc. We simply provide a **declarative syntax** similar to `macro_rules!` to automatically generate the underlying `syn` parsing logic.
+Writing procedural macros in Rust shouldn't be a nightmare filled with boilerplate code and black-box debugging.
+**Vacro** has evolved from a simple parsing library into a complete toolchain designed to improve the **Developer Experience (DevX)** across the entire macro lifecycle:
 
-## Comparison: The Pain Points
+1.  **Parsing**: Write parsing logic in a declarative way.
+2.  **Debugging**: Visualize the parsing path to see exactly what happens inside the macro.
+3.  **Reporting**: Easily generate elegant and precise compiler error messages.
 
-Suppose we want to parse a function signature with generics: `fn my_func<T, U>(a: i32) -> bool`.
+## The Ecosystem
 
-### ❌ Traditional Approach (Raw Syn)
+Vacro is designed as a modular framework. You can use the fully-featured `vacro` entry point or pick specific underlying components as needed.
 
-To parse this structure, you need to write dozens of lines of boilerplate code to handle generics, parentheses, comma separators, and optional return values:
+| Feature         | Crate            | Description                                                                                                   |
+| :-------------- | :--------------- | :------------------------------------------------------------------------------------------------------------ |
+| **Parsing**     | `vacro-parser`   | **Declarative Parsing.** A DSL similar to `macro_rules!` that automatically implements `syn::Parse`.          |
+| **Debugging**   | `vacro-trace`    | **Visual Tracing.** Generates a parsing state tree in the terminal to solve complex grammar debugging issues. |
+| **Diagnostics** | `vacro-report`   | **Error Reporting.** Simplifies the construction and emission of diagnostic messages in proc-macros.          |
+| **Docs**        | `vacro-doc-i18n` | **I18n Docs.** Provides multi-language documentation support for `Vacro`.                                     |
 
-```rust
-// Traditional syn parsing logic: scattered logic, error-prone
-# use syn::{
-#     FnArg, GenericParam, Ident, Result, Token, Type, parenthesized,
-#     parse::{Parse, ParseStream},
-#     punctuated::Punctuated,
-# };
-struct MyFn {
-    name: Ident,
-    generics: Option<Punctuated<GenericParam, Token![,]>>,
-    args: Punctuated<FnArg, Token![,]>,
-    ret: Option<Type>
-}
+## Quick Start
 
-impl Parse for MyFn {
-    fn parse(input: ParseStream) -> Result<Self> {
-        input.parse::<Token![fn]>()?; // 1. Consume keyword
-        // 2. Manually handle generics (Peek + Parse)
-        let generics = if input.peek(Token![<]) {
-             input.parse::<Token![<]>()?;
-             let params = Punctuated::parse_terminated(input)?;
-             input.parse::<Token![>]>()?;
-             Some(params)
-        } else {
-             None
-        };
-        let name: Ident = input.parse()?; // 3. Parse name
-        let content;
-        parenthesized!(content in input); // 4. Handle parentheses
-        let args: Punctuated<FnArg, Token![,]> =
-            content.parse_terminated(FnArg::parse, Token![,])?;
-        // 5. Handle optional return value
-        let ret = if input.peek(Token![->]) {
-            input.parse::<Token![->]>()?;
-            Some(input.parse::<Type>()?)
-        } else {
-            None
-        };
-        Ok(MyFn { name, generics, args, ret })
-    }
-}
-```
-
-### ✅ Using Vacro
-
-With **Vacro**, you only need to describe what the syntax looks like; what you see is what you get.
-
-```rust
-# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
-vacro::define!(MyFn:
-    fn                                    // Match literal
-    #(?: <#(generic*[,]: GenericParam)>)  // Optional generic param list (angle brackets + comma separated)
-    #(name: Ident)                        // Named capture for function name
-    ( #(args*[,]: FnArg) )                // Argument list (parentheses + comma separated)
-    #(?: -> #(ret: Type))                 // Optional return value
-);
-```
-
-If written in a single line:
-
-```rust
-# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated};
-vacro::define!(MyFn: fn #(?: <#(generic*[,]: GenericParam)>) #(name: Ident) (#(args*[,]: FnArg)) #(?: -> #(ret: Type)));
-```
-
-One line of code covers all complex parsing logic.
-
-## Installation
-
-To use Vacro in your project, add the following to your `Cargo.toml`:
+Add `vacro` to your `Cargo.toml` and enable the DevX features you need:
 
 ```toml
 [dependencies]
-vacro = { version = "0.1.4", features = ["doc-en"] } # enable English docs
+vacro = { version = "0.2", features = ["full"] }
+
 ```
 
-About Multi Language Support, see [Multi Language Support](#multi-language-support-since-v014)
+### 1. Declarative Parsing (`vacro-parser`)
 
-## Core Macros
-
-Vacro provides two core macros for **defining structs** and **on-the-fly parsing**, respectively.
-
-### 1\. `define!`: Define Parsing Structs
-
-If you need to define a reusable AST node (i.e., define a `struct` and automatically implement `syn::parse::Parse`), use `define!`.
+Define your macro's input grammar like writing regex:
 
 ```rust
-# use syn::{Ident, Type, GenericParam, Token, FnArg, Result, punctuated::Punctuated, parse_macro_input};
-// Define a struct named MyFn, it automatically implements the Parse trait
-vacro::define!(MyFn:
+use vacro::prelude::*;
+
+// Define syntax: "fn" <name> "(" <args> ")"
+vacro::define!(MyMacroInput:
     fn
-    #(?: <#(generic*[,]: GenericParam)>)
-    #(name: Ident)
-    ( #(args*[,]: FnArg) )
-    #(?: -> #(ret: Type))
+    #(name: syn::Ident)
+    ( #(args*[,]: syn::Type) )
 );
 
-fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    // Usage
-    let my_fn = parse_macro_input!(input as MyFn);
-    println!("Function name: {}", my_fn.name);
-    # proc_macro::TokenStream::new()
+```
+
+See more: [vacro-parser](https://docs.rs/vacro-parser)
+
+### 2. Diagnostic Reporting (`vacro-report`)
+
+Provides superior error reporting capabilities, saying goodbye to generic `unexpected identifier` errors.
+
+```rust
+use vacro::prelude::*;
+
+#[vacro::report::scope]
+fn my_macro_impl(input: TokenStream) -> TokenStream {
+    let name = Ident::new("foo", Span::call_site());
+
+    // If this fails (e.g., invalid syntax constructed),
+    // instead of a raw panic like "proc-macro panicked: parse_quote failed at...",
+    // Vacro will catch it and emit a precise error pointing to the code.
+    // Error message: "expected an expression"
+    // Tokens context will be shown.
+    let f: ItemFn = parse_quote!( fn #name () { >>invalid<< } );
+
+    quote!(#f)
 }
-```
-
-### 2\. `bind!`: On-the-fly Stream Parsing
-
-If you want to quickly consume a segment of a `TokenStream` within existing parsing logic, use `bind!`.
-
-#### Named Capture
-
-If the pattern uses the form `name: Type`, the macro generates a struct named `Output` containing all fields.
-
-```rust
-# use syn::{Ident, Type};
-# fn proc_macro(input: proc_macro::TokenStream) -> syn::Result<()> {
-vacro::bind!(
-    let captured = (input ->
-        fn #(name: Ident) #(?: -> #(ret: Type))
-    )?;
-);
-// Access fields
-captured.name; // Ident
-captured.ret;  // Option<Type>
-# Ok(())
-# }
 
 ```
 
-#### Inline Capture
+## Roadmap
 
-If no name is specified in the pattern (or it contains only anonymous captures), the macro will return a tuple or a single value.
+We are currently in active development, transitioning towards a DevX Framework.
 
-```rust
-# use syn::{Ident, Type};
-# fn inline_capture(input: proc_macro::TokenStream) -> syn::Result<()> {
-    // Parse types only, no names needed
-    vacro::bind!(
-        let (ident, ty) = (input -> #(@:Ident): #(@:Type))?;
-    );
-    // Access fields
-    ident; // Ident
-    ty;    // Type
+- [x] **Documentation**: Multi-language support (`vacro-doc-i18n`).
+- [x] **Parsing**: Core DSL implementation (`vacro-parser`).
+- [x] **Diagnostics**: Error reporting integration (`vacro-report`).
+- [ ] **Debugging**: Implementation of `vacro-trace`.
 
-    # Ok(())
-# }
+## Contributing
 
-```
-
-## Syntax Reference
-
-Vacro's DSL design intuition comes from `macro_rules!` and regular expressions.
-
-| Syntax          | Type           | Description                                                                                           | Result Type                | Example                  |
-| :-------------- | :------------- | :---------------------------------------------------------------------------------------------------- | :------------------------- | :----------------------- |
-| `literal`       | Literal        | Matches and consumes a Token (Rust keywords/symbols like `fn`, `->` or custom ones like `miku`, `<>`) | `!`                        | `fn`, `->`, `miku`, `<>` |
-| `#(x: T)`       | Named Capture  | Captures a specific `syn` type                                                                        | `T` (e.g. `Ident`, `Type`) | `#(name: Ident)`         |
-| `#(x?: T)`      | Named Optional | Attempts to parse; skips if failed                                                                    | `Option<T>`                | `#(name?: Ident)`        |
-| `#(x*[sep]: T)` | Named Iter     | Similar to `Punctuated`, parses by separator                                                          | `Punctuated<T, sep>`       | `#(args*: Ident)`        |
-| `#(T)`          | Anonymous      | Captures a specific `syn` type, but for validation only                                               | `!`                        | `#(Ident)`               |
-| `#(?: T)`       | Anon Optional  | Validation only; skips if failed                                                                      | `!`                        | `#(?: Ident)`            |
-| `#(*[sep]: T)`  | Anon Iter      | Similar to `Punctuated`, parses by separator (validation only)                                        | `!`                        | `#(*[,]: Ident)`         |
-
-## Polymorphic Capture (Enum Parsing)
-
-Vacro supports parsing "polymorphic" structures, where a position in the input stream can be one of multiple types. By defining enum variants, Vacro automatically generates the parsing logic (using lookahead/forking) to try each variant.
-
-Syntax: `#(name: EnumName { Variant1, Variant2: Type, Variant3: Pattern })`
-
-```rust
-# use syn::{Ident, Expr};
-
-vacro::define!(MyPoly:
-    #(data: MyEnum {
-        Ident,                            // 1. Shorthand: Match Ident, produces MyEnum::Ident(Ident)
-        syn::Type,                        // 2. Shorthand: Match Type, produces MyEnum::Type(syn::Type)
-        Integer: syn::LitInt,             // 3. Alias: Match syn::LitInt, produces MyEnum::Integer(syn::LitInt)
-        Function: fn #(name: Ident),      // 4. Pattern: Match pattern(named), produces MyEnum::Function { name: Ident }
-        Tuple: (#(@: Ident), #(@: Expr)), // 5. Pattern: Match pattern(inline), produces MyEnum::Tuple(Ident, Expr)
-    })
-);
-
-// The macro automatically generates the Enum definition:
-// pub enum MyEnum {
-//     Ident(Ident),
-//     Type(syn::Type),
-//     Integer(syn::LitInt),
-//     Function { name: Ident },
-//     Tuple(Ident, Expr)
-// }
-```
-
-## End-to-End Example
-
-Here is a complete example showing how to parse a custom "Service Definition" syntax.
-
-**Target Syntax**
-
-```text
-service MyService {
-    version: "1.0",
-    active: true
-}
-```
-
-**Implementation:**
-
-```rust
-use syn::{parse::Parse, parse::ParseStream, Ident, LitStr, LitBool, Token, Result, parse_quote};
-use vacro::define;
-// 1. Define the AST using vacro DSL
-define!(ServiceDef:
-    service                   // Keyword "service"
-    #(name: Ident)            // Captured Service Name
-    {                         // Braced block
-        version : #(ver: LitStr) ,  // "version" ":" <string> ","
-        active : #(is_active: LitBool) // "active" ":" <bool>
-    }
-);
-// 2. Simulate parsing (In a real macro, this comes from the input TokenStream)
-fn main() -> Result<()> {
-    // Mock input: service MyService { version: "1.0", active: true }
-    let input: proc_macro2::TokenStream = quote::quote! {
-        service MyService {
-            version: "1.0",
-            active: true
-        }
-    };
-    // Parse it! / 解析它！
-    let service: ServiceDef = syn::parse2(input)?;
-    // 3. Access the fields
-    assert_eq!(service.name.to_string(), "MyService");
-    assert_eq!(service.ver.value(), "1.0");
-    assert!(service.is_active.value);
-    println!("Successfully parsed service: {}", service.name);
-    Ok(())
-}
-```
-
-## Multi-language Support (since v0.1.4)
-
-Starting from version `v0.1.4`, `vacro` provides support for multi-language documentation through [`vacro-doc-i18n`](https://crates.io/crates/vacro-doc-i18n). You can control the language of IDE tooltips (Hover) and generated documentation by toggling `features` in your `Cargo.toml`.
-
-Simply enable the corresponding language feature in your project's dependencies. By default (when no features are enabled), the documentation is displayed in English.
-
-```toml
-[dependencies]
-# Enable English documentation support
-vacro = { version = "0.1.4", features = ["doc-en"] }
-
-# Or enable Chinese documentation support
-# vacro = { version = "0.1.4", features = ["doc-cn"] }
-
-# Only used when publishing to docs.rs (retains all languages without filtering)
-# vacro = { version = "0.1.4", features = ["doc-all"] }
-
-```
-
----
-
-# Vacro Roadmap
-
-## 📅 Phase 1: Solidifying Foundations (v0.1.x) - Current Focus
-
-**Goal:** Ensure existing core macros (`define!`, `bind!`) are stable and reliable, and establish a comprehensive testing and documentation system.
-
-### 1. Improve Documentation (Documentation)
-
-- [x] **API Documentation**: Add detailed Rustdoc comments to core structures like `Pattern`, `BindInput`, and `Keyword` to ensure readability on `docs.rs`.
-- [x] **README Enhancement**: Integrate the latest README, add an `examples/` directory, and provide basic real-world examples (such as parsing simple structs and functions).
-- [ ] **Error Reporting Optimization**: Optimize `syn::Error` generation to ensure that when DSL syntax errors occur (e.g., mismatched parentheses), users receive clear compiler error messages instead of internal panics.
-
-### 2. Comprehensive Testing System (Testing)
-
-- [x] **Unit Tests**:
-  - [x] Cover edge cases in `inject_lookahead` (recursive Groups, consecutive Literals, etc.).
-  - [x] Test the `Keyword` parser's ability to handle special symbols (`->`, `=>`, `<`) and custom keywords.
-- [ ] **UI Tests (Compile-fail Tests)**:
-  - [ ] **Integrate `trybuild`**.
-  - [ ] Write "negative test cases": Verify that the macro correctly intercepts and reports errors when input types do not match expectations (e.g., providing a `LitStr` when an `Ident` is expected).
-- [x] **Integration Tests**:
-  - [x] Simulate real-world scenarios to verify that structs generated by `define!` can correctly handle complex TokenStreams.
-
----
-
-## 🚀 Phase 2: Architectural Innovation (v0.2.x) - Core Enhancements
-
-**Goal:** Introduce advanced data structure mapping capabilities to solve "polymorphism" and "aggregation" issues in complex ASTs, enabling Vacro to handle complex syntax trees.
-
-### 3. New Syntax Development (New Syntax)
-
-#### A. Associative/Structural Capture
-
-_Solves the "Array of Structs (AoS)" problem, i.e., capturing aggregated structures at once rather than scattered lists of fields._
-
-- [ ] **Syntax Implementation**: Support `#(~name...: ...)` syntax to mark aggregated captures.
-- [ ] **Tuple Support**: Implement `#(~items*: #(@:Type) #(@:Ident))` to generate `Vec<(Type, Ident)>`.
-- [ ] **Struct Support**: Support internal named captures to generate lists of anonymous structs.
-
-#### B. Polymorphic Capture (Enum Parsing)
-
-_Solves the "Polymorphic Parsing" problem, i.e., a position can be one of multiple types._
-
-- [x] **Syntax Implementation**: Support `#(name: EnumName { VariantA, VariantB })` syntax.
-- [x] **Automatic Definition**: If `EnumName` is undefined, automatically generate an enum definition containing `VariantA(TypeA)`, `VariantB(TypeB)`.
-- [x] **Branch Parsing**: Generate attempt-parsing logic based on `input.fork()` or `peek`, automatically handling backtracking on failure.
-
----
-
-## 🛠️ Phase 3: Ecosystem & Tools (v0.3.x) - Developer Experience
-
-**Goal:** Provide peripheral tools to lower the learning curve and debugging costs of Vacro.
-
-### 4. Toolchain Development (Toolchain)
-
-- [ ] Coming soon
-
----
+We are building the best developer experience for Rust metaprogramming. If you have ideas on how to reduce the pain of writing macros, please open an issue!
 
 ## License
 

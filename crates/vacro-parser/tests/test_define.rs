@@ -1,6 +1,6 @@
 use quote::quote;
-use syn::{Ident, LitInt, parse2};
-use vacro::define;
+use syn::{parse2, Ident, LitInt};
+use vacro_parser::define;
 
 // 1. 基础测试：最简单的结构体定义
 // 定义一个名为 Simple 的解析器，格式为 "kw" + Ident

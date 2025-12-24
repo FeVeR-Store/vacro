@@ -76,8 +76,8 @@ mod tests {
     use proc_macro2::{Span, TokenStream};
     use quote::quote;
     use syn::{
-        Result,
         parse::{ParseStream, Parser},
+        Result,
     };
 
     use crate::{
