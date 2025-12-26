@@ -7,7 +7,9 @@ pub(crate) mod states;
 pub use quote::quote;
 use rust_format::Formatter;
 
-use crate::__private::{model::TraceEvent, states::TraceSession};
+use crate::__private::model::TraceEvent;
+
+pub use states::TraceSession;
 
 fn fmt(tokens: String) -> String {
     rust_format::PrettyPlease::default()

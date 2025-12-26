@@ -10,8 +10,8 @@ pub fn snapshot(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn instrument(input: TokenStream, attr: TokenStream) -> TokenStream {
-    impls::instrument::instrument_impl(input.into(), attr.into())
+pub fn instrument(attr: TokenStream, input: TokenStream) -> TokenStream {
+    impls::instrument::instrument_impl(attr.into(), input.into())
         .unwrap_or_else(|e| e.to_compile_error())
         .into()
 }

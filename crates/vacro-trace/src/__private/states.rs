@@ -6,30 +6,34 @@ use std::time::SystemTime;
 use crate::__private::cargo::metadata;
 
 thread_local! {
-    static WRITER: RefCell<BufWriter<File>> = {
-        let session = match TraceSession::get_session() {
-            Some(session) => session,
-            None => {
-                eprintln!("[Vacro Trace Warning] Failed to get session");
-                TraceSession::new()
-            }
-        };
-        let target_directory = match metadata() {
-            Ok(metadata) => metadata.target_directory,
-            Err(e) => {
-                eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
-                std::env::current_dir().unwrap().join("target")
-            }
-        };
-        let vacro_directory = target_directory.join("vacro");
-        if let Err(e) = fs::create_dir_all(&vacro_directory) {
-            eprintln!("[Vacro Trace Warning] Failed to create vacro directory: {}", e);
-        }
-        let trace_file = vacro_directory.join(format!("trace-{}.jsonl", session.id));
-        let writer = BufWriter::new(File::create(trace_file).unwrap());
-        RefCell::new(writer)
-    };
+    static WRITER: RefCell<Option<BufWriter<File>>> = RefCell::new(None);
     static CURRENT_CONTEXT: RefCell<Option<TraceSession>> = RefCell::new(None);
+}
+
+fn create_writer(session: &TraceSession) -> Option<BufWriter<File>> {
+    let target_directory = match metadata() {
+        Ok(metadata) => metadata.target_directory,
+        Err(e) => {
+            eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
+            std::env::current_dir().ok()?.join("target")
+        }
+    };
+    let vacro_directory = target_directory.join("vacro");
+    if let Err(e) = fs::create_dir_all(&vacro_directory) {
+        eprintln!(
+            "[Vacro Trace Warning] Failed to create vacro directory: {}",
+            e
+        );
+        return None;
+    }
+    let trace_file = vacro_directory.join(format!("trace-{}.jsonl", session.id));
+    match File::create(trace_file) {
+        Ok(f) => Some(BufWriter::new(f)),
+        Err(e) => {
+            eprintln!("[Vacro Trace Error] Failed to create log file: {}", e);
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +54,8 @@ impl TraceSession {
     pub fn new() -> Self {
         let id = uuid::Uuid::new_v4().to_string();
         let macro_name = String::new();
-        let crate_name = String::new();
+
+        let crate_name = std::env::var("CARGO_CRATE_NAME").unwrap_or_else(|_| "unknown".to_string());
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -84,25 +89,47 @@ impl TraceSession {
     }
     pub fn writeln(message: &str) {
         if let Some(session) = Self::get_session() {
-            WRITER.with_borrow_mut(|writer| {
-                let _ = writeln!(
-                    writer,
-                    "{{ id: {}, macro_name: {}, crate_name: {}, timestamp: {}, message: {} }}",
-                    session.id, session.macro_name, session.crate_name, session.timestamp, message
-                );
-            })
+            WRITER.with(|cell| {
+                let mut borrow = cell.borrow_mut();
+                // Lazy Init: Only create file when we actually have something to write
+                if borrow.is_none() {
+                    *borrow = create_writer(&session);
+                }
+
+                if let Some(writer) = borrow.as_mut() {
+                    if let Err(e) = writeln!(
+                        writer,
+                        "{{ id: {}, macro_name: {}, crate_name: {}, timestamp: {}, message: {} }}",
+                        session.id,
+                        session.macro_name,
+                        session.crate_name,
+                        session.timestamp,
+                        message
+                    ) {
+                        eprintln!("[Vacro Trace Error] Failed to write to log: {}", e);
+                    }
+                }
+            });
+        } else {
+            // Debug logging to help understand why logs are missing
+            // eprintln!("[Vacro Trace Warning] writeln called but no session found.");
         }
     }
 }
 
 pub struct SessionGuard;
 
-impl Drop for TraceSession {
+impl Drop for SessionGuard {
     fn drop(&mut self) {
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = None);
-        WRITER.with(|writer| {
-            if let Err(e) = writer.borrow_mut().flush() {
-                eprintln!("[Vacro Trace Warning] Failed to flush trace log: {}", e);
+        WRITER.with(|cell| {
+            // Only flush if we actually created a writer (i.e., we wrote something)
+            if let Ok(mut borrow) = cell.try_borrow_mut() {
+                if let Some(writer) = borrow.as_mut() {
+                    if let Err(e) = writer.flush() {
+                        eprintln!("[Vacro Trace Warning] Failed to flush trace log: {}", e);
+                    }
+                }
             }
         });
     }
