@@ -1,8 +1,8 @@
 use crate::utils::crate_name;
-#[cfg(not(test))]
-use syn::parse_quote;
 use proc_macro2::TokenStream;
 use quote::quote;
+#[cfg(not(test))]
+use syn::parse_quote;
 use syn::{parse::Parse, Expr, LitStr, Token};
 
 struct SnapshotInput {
