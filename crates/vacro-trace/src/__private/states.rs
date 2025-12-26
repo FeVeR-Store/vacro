@@ -7,8 +7,8 @@ use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 
 thread_local! {
-    static WRITER: RefCell<Option<BufWriter<File>>> = RefCell::new(None);
-    static CURRENT_CONTEXT: RefCell<Option<TraceSession>> = RefCell::new(None);
+    static WRITER: RefCell<Option<BufWriter<File>>> = const { RefCell::new(None) };
+    static CURRENT_CONTEXT: RefCell<Option<TraceSession>> = const { RefCell::new(None) };
 }
 
 fn create_writer(session: &TraceSession) -> Option<BufWriter<File>> {
@@ -119,6 +119,12 @@ impl TraceSession {
             // Debug logging to help understand why logs are missing
             // eprintln!("[Vacro Trace Warning] writeln called but no session found.");
         }
+    }
+}
+
+impl Default for TraceSession {
+    fn default() -> Self {
+        TraceSession::new()
     }
 }
 
