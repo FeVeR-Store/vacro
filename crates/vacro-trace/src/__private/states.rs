@@ -50,6 +50,11 @@ impl TraceSession {
     pub fn enter() -> SessionGuard {
         let session = Self::new();
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = Some(session));
+        let event = TraceEvent::PhaseStart {
+            name: MACRO_EXPAND.to_string(),
+            time: now(),
+        };
+        Self::writeln(&serde_json::to_string(&event).unwrap());
         SessionGuard
     }
     pub fn new() -> Self {
@@ -120,6 +125,11 @@ pub struct SessionGuard;
 
 impl Drop for SessionGuard {
     fn drop(&mut self) {
+        let event = TraceEvent::PhaseEnd {
+            name: MACRO_EXPAND.to_string(),
+            time: now(),
+        };
+        TraceSession::writeln(&serde_json::to_string(&event).unwrap());
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = None);
         WRITER.with(|cell| {
             // Only flush if we actually created a writer (i.e., we wrote something)
