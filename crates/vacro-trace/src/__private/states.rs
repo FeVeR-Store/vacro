@@ -1,9 +1,10 @@
+use crate::__private::cargo::metadata;
+use crate::__private::constant::{self, MACRO_EXPAND};
+use crate::__private::model::TraceEvent;
+use crate::__private::utils::now;
 use std::cell::RefCell;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-use std::time::SystemTime;
-
-use crate::__private::cargo::metadata;
 
 thread_local! {
     static WRITER: RefCell<Option<BufWriter<File>>> = RefCell::new(None);
@@ -55,11 +56,9 @@ impl TraceSession {
         let id = uuid::Uuid::new_v4().to_string();
         let macro_name = String::new();
 
-        let crate_name = std::env::var("CARGO_CRATE_NAME").unwrap_or_else(|_| "unknown".to_string());
-        let timestamp = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
+        let crate_name =
+            std::env::var(constant::CARGO_CRATE_NAME).unwrap_or_else(|_| "unknown".to_string());
+        let timestamp = now();
 
         Self {
             id,
