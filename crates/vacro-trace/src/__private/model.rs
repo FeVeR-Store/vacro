@@ -13,5 +13,9 @@ pub enum TraceEvent {
         time: u64,
     },
     /// 普通日志
-    Log { level: String, message: String },
+    Log {
+        level: String,
+        message: String,
+        time: u64,
+    },
 }
