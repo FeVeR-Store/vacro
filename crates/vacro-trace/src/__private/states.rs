@@ -47,8 +47,9 @@ pub struct TraceSession {
 
 #[allow(dead_code)]
 impl TraceSession {
-    pub fn enter() -> SessionGuard {
-        let session = Self::new();
+    pub fn enter(macro_name: &str) -> SessionGuard {
+        let mut session = Self::new();
+        session.macro_name = macro_name.to_string();
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = Some(session));
         let event = TraceEvent::PhaseStart {
             name: MACRO_EXPAND.to_string(),
@@ -103,7 +104,7 @@ impl TraceSession {
                 if let Some(writer) = borrow.as_mut() {
                     if let Err(e) = writeln!(
                         writer,
-                        "{{ id: {}, macro_name: {}, crate_name: {}, timestamp: {}, message: {} }}",
+                        r#"{{ id: "{}", macro_name: "{}", crate_name: "{}", timestamp: {}, message: {} }}"#,
                         session.id,
                         session.macro_name,
                         session.crate_name,
@@ -132,12 +133,14 @@ impl Drop for SessionGuard {
         TraceSession::writeln(&serde_json::to_string(&event).unwrap());
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = None);
         WRITER.with(|cell| {
-            // Only flush if we actually created a writer (i.e., we wrote something)
             if let Ok(mut borrow) = cell.try_borrow_mut() {
-                if let Some(writer) = borrow.as_mut() {
+                // Take the writer out of the Option, leaving None behind.
+                // This ensures the next session will create a FRESH writer/file.
+                if let Some(mut writer) = borrow.take() {
                     if let Err(e) = writer.flush() {
                         eprintln!("[Vacro Trace Warning] Failed to flush trace log: {}", e);
                     }
+                    // writer is dropped here, closing the file handle.
                 }
             }
         });

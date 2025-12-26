@@ -17,9 +17,7 @@ pub fn instrument_impl(_attr: TokenStream, input: TokenStream) -> syn::Result<To
         let macro_name = &fn_impl.sig.ident;
         let mut enter_session: Vec<Stmt> = parse_quote! {
             #[doc(hidden)]
-            let __guard = #pkg::__private::TraceSession::enter();
-            #pkg::__private::TraceSession::macro_name(stringify!(#macro_name));
-            
+            let __guard = #pkg::__private::TraceSession::enter(stringify!(#macro_name));
         };
         let mut stmts = fn_impl.block.stmts;
         enter_session.append(&mut stmts);
