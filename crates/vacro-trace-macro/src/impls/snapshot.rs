@@ -1,8 +1,9 @@
+use crate::utils::crate_name;
+#[cfg(not(test))]
+use syn::parse_quote;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse::Parse, parse_quote, Expr, LitStr, Token};
-
-use crate::utils::crate_name;
+use syn::{parse::Parse, Expr, LitStr, Token};
 
 struct SnapshotInput {
     tag: String,
