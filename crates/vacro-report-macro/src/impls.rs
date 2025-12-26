@@ -38,8 +38,14 @@ impl TraceRewriter {
         if self.rewrite_parse_quote && last_ident_str == "parse_quote" {
             let origin_span = last.ident.span();
 
-            mac.path = parse_quote_spanned! {origin_span=>
-                ::vacro_report::__private::parse_quote
+            mac.path = if cfg!(feature = "standalone") {
+                parse_quote_spanned! {origin_span=>
+                    ::vacro_report::__private::parse_quote
+                }
+            } else {
+                parse_quote_spanned! {origin_span=>
+                    ::vacro::report::__private::parse_quote
+                }
             };
         }
     }

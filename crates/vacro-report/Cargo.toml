@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 proc-macro2 = "1.0"
-rust-format = { version = "0.3.4", features = ["pretty_please", "token_stream"] }
+rust-format = { workspace = true }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
 vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.0" }
 

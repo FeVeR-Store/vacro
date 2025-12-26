@@ -6,6 +6,7 @@ pub mod parser {
 
 #[cfg(feature = "report")]
 pub mod report {
+    #[doc(hidden)]
     pub use vacro_report::__private;
     pub use vacro_report::scope;
 }
