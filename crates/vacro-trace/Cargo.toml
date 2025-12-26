@@ -1,0 +1,13 @@
+[package]
+name = "vacro-trace"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+quote = { workspace = true }
+rust-format = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2.0.17"
+uuid = { version = "1.19.0", features = ["v4"] }
+vacro-trace-macro = { path = "../vacro-trace-macro", version = "0.1.0" }
