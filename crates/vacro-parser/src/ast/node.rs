@@ -43,7 +43,7 @@ pub enum PatternKind {
     },
 
     /// 捕获节点 (e.g. `#(name: Type)`)
-    Capture(Capture),
+    Capture(Box<Capture>),
 }
 
 impl Pattern {

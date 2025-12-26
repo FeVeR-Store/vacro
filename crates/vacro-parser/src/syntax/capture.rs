@@ -1,11 +1,11 @@
 use proc_macro2::{Delimiter, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Path, Token, Type, braced, bracketed, parenthesized,
-    parse::{Parse, ParseStream, Parser, discouraged::Speculative},
+    braced, bracketed, parenthesized,
+    parse::{discouraged::Speculative, Parse, ParseStream, Parser},
     parse_quote,
     spanned::Spanned,
-    token,
+    token, Ident, Path, Token, Type,
 };
 
 use crate::{
@@ -168,10 +168,10 @@ impl Matcher {
                 return Ok(matcher);
             }
             // 如果是 #(...)，则解析为 Capture
-            let capture = Capture::parse(&input, ctx)?;
+            let capture = Capture::parse(input, ctx)?;
             let span = capture.span;
             let pattern = Pattern {
-                kind: PatternKind::Capture(capture),
+                kind: PatternKind::Capture(Box::new(capture)),
                 span,
                 meta: None,
             };
@@ -205,7 +205,7 @@ impl Matcher {
                                         MatcherKind::SynType(ty.clone())
                                     }
                                     EnumVariant::Capture { pattern, .. } => {
-                                        MatcherKind::Nested(vec![pattern.clone()])
+                                        MatcherKind::Nested(vec![*pattern.clone()])
                                     }
                                 },
                             },
@@ -251,7 +251,7 @@ impl Matcher {
             match cap.kind {
                 MatcherKind::SynType(_) | MatcherKind::Enum { .. } => Err(syn::Error::new(
                     input.span(),
-                    format!("Unexpected '{}'", input.to_string()),
+                    format!("Unexpected '{}'", input),
                 )),
                 MatcherKind::Nested(mut pattern_list) => {
                     let pattern: Pattern = Pattern::parse(input)?;
@@ -277,15 +277,15 @@ impl Parse for EnumVariant {
         // 可能是Type或TypeName
         let fork = input.fork();
         // 尝试解析为Type，如果解析后是','或空，则结束
-        if let Ok(ty) = fork.parse::<Type>()
-            && (fork.is_empty() || fork.peek(Token![,]))
-        {
-            input.advance_to(&fork);
-            // 如果是Type，那么必须是可简写的模式，可解析为Path
-            let path: Path = parse_quote!(#ty);
-            let ident = path.segments.last().unwrap();
-            let ident = parse_quote!(#ident);
-            return Ok(EnumVariant::Type { ident, ty });
+        if let Ok(ty) = fork.parse::<Type>() {
+            if fork.is_empty() || fork.peek(Token![,]) {
+                input.advance_to(&fork);
+                // 如果是Type，那么必须是可简写的模式，可解析为Path
+                let path: Path = parse_quote!(#ty);
+                let ident = path.segments.last().unwrap();
+                let ident = parse_quote!(#ident);
+                return Ok(EnumVariant::Type { ident, ty });
+            }
         }
 
         let ident: Ident = input.parse()?;
@@ -309,7 +309,7 @@ impl Parse for EnumVariant {
             while !fork.peek(Token![,]) && !fork.is_empty() {
                 tokens.append(fork.parse::<TokenTree>()?);
             }
-            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(&input) };
+            let parser = |input: ParseStream| -> syn::Result<Pattern> { Pattern::parse(input) };
             let pattern = parser.parse2(tokens)?;
             input.advance_to(&fork);
             let captures = pattern.collect_captures();
@@ -322,7 +322,7 @@ impl Parse for EnumVariant {
                 ident,
                 named,
                 fields: captures,
-                pattern,
+                pattern: Box::new(pattern),
             })
         }
     }

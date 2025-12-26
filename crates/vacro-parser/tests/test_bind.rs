@@ -1,7 +1,7 @@
 use quote::quote;
 use std::str::FromStr;
 use syn::{Ident, LitInt, Type};
-use vacro::bind;
+use vacro_parser::bind;
 
 use proc_macro2::TokenStream;
 

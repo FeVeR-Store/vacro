@@ -1,8 +1,9 @@
 use proc_macro2::{Punct, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Local, Stmt, Token, parenthesized,
-    parse::{Parse, Parser, discouraged::Speculative},
+    parenthesized,
+    parse::{discouraged::Speculative, Parse, Parser},
+    Local, Stmt, Token,
 };
 
 use crate::ast::{

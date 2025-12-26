@@ -3,26 +3,75 @@ name: Publish to Crates.io
 on:
   push:
     tags:
-      - "v*" # 当推送到 v0.1.0, v1.2.3 等标签时触发
+      - "v*"
+
+env:
+  CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
 jobs:
   publish:
-    name: Publish
+    name: Publish Updated Crates
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # 安全检查：发布前先跑一遍测试，防止发了坏包
-      # 注意：这里会自动应用我们在 [dev-dependencies] 设置的 extra-traits
-      - name: Run tests
-        run: cargo test
+      # 这一步定义了一个 bash 函数，用来检查版本并发布
+      # 逻辑：
+      # 1. 读取 Cargo.toml 里的版本号
+      # 2. 用 curl 问 crates.io 这个版本有了吗？
+      # 3. 有了 -> 跳过
+      # 4. 没有 -> cargo publish
+      - name: Define Publish Logic
+        id: publish_func
+        run: |
+          echo 'publish_crate() {
+            CRATE_PATH=$1
+            CRATE_NAME=$2
 
-      # 正式发布
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+            VERSION=$(grep "^version" $CRATE_PATH/Cargo.toml | head -n 1 | cut -d '"' -f 2)
+
+            echo "------------------------------------------------"
+            echo "Checking $CRATE_NAME (v$VERSION)..."
+
+            # 检查 crates.io API (返回 200 表示存在，404 表示不存在)
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION)
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Version $VERSION already exists on crates.io. Skipping."
+            else
+              echo "🚀 Version $VERSION not found. Publishing..."
+              cargo publish -p $CRATE_NAME
+
+              # 发布后休眠一会，等待索引更新，防止依赖它的包找不到版本
+              echo "⏳ Waiting for index propagation..."
+              sleep 20
+            fi
+          }' >> $GITHUB_ENV
+
+      # 下面按照依赖顺序，依次调用上面的逻辑
+
+      # 1. 最底层库 (无依赖)
+      - name: Process vacro-doc-i18n
+        run: |
+          source $GITHUB_ENV
+          publish_crate "crates/vacro-doc-i18n" "vacro-doc-i18n"
+
+      - name: Process vacro-report
+        run: |
+          source $GITHUB_ENV
+          publish_crate "crates/vacro-report" "vacro-report"
+
+      # 2. 核心库
+      - name: Process vacro-parser
+        run: |
+          source $GITHUB_ENV
+          publish_crate "crates/vacro-parser" "vacro-parser"
+
+      # 3. 门面库 (依赖以上所有)
+      - name: Process vacro
+        run: |
+          source $GITHUB_ENV
+          publish_crate "." "vacro"

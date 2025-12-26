@@ -1,23 +1,44 @@
 [package]
 name = "vacro"
-version = "0.1.0"
-edition = "2024"
-authors = ["FeVeR renyis@foxmail.com"]
+version = "0.2.0"
+edition = "2021"
+description = "A progressive DevX framework for building Rust procedural macros. Painless parsing, visual debugging, and robust tooling."
+documentation = "https://docs.rs/vacro"
+readme = "readme.md"
+repository = "https://github.com/FeVeR-Store/vacro"
+license = "MIT OR Apache-2.0"
+keywords = ["macros", "proc-macro", "syn"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["extra-traits", "doc-all", "full"]
+rustdoc-args = ["--html-in-header", "docs/doc-i18n.html"]
 
-[lib]
-proc-macro = true
+[workspace]
+members = [
+  "crates/vacro-doc-i18n",
+  "crates/vacro-parser",
+  "crates/vacro-report",
+  "crates/vacro-report-macro",
+]
 
-[features]
-extra-traits = ["syn/extra-traits"]
-
-[dev-dependencies]
-trybuild = "1.0"
-syn = { version = "2.0", features = ["full", "extra-traits"] }
-
-[dependencies]
-syn = { version = "2.0", features = ["full"] }
+[workspace.dependencies]
 proc-macro2 = "1.0"
 quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+trybuild = "1.0"
+
+[dependencies]
+vacro-doc-i18n = "0.1.0"
+vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", optional = true }
+vacro-report = { path = "./crates/vacro-report", version = "0.1.0", default-features = false, optional = true }
+
+[features]
+default = ["parser", "report"]
+doc-all = ["vacro-doc-i18n/doc-all"]
+doc-cn = ["vacro-doc-i18n/doc-cn"]
+doc-en = ["vacro-doc-i18n/doc-en"]
+extra-traits = ["vacro-parser/extra-traits"]
+full = ["parser", "report"]
+parser = ["dep:vacro-parser"]
+report = ["dep:vacro-report"]

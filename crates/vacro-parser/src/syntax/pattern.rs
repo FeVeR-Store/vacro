@@ -1,12 +1,12 @@
 use proc_macro2::{Delimiter, Group, Punct, Spacing, TokenStream, TokenTree};
 use quote::TokenStreamExt;
 use syn::{
-    Ident, Result, Token, braced, bracketed,
+    braced, bracketed,
     ext::IdentExt,
     parenthesized,
     parse::{ParseStream, Parser},
     spanned::Spanned,
-    token,
+    token, Ident, Result, Token,
 };
 
 use crate::{
@@ -51,13 +51,12 @@ impl Pattern {
 
                 content.extend([TokenTree::Punct(hash_punct), TokenTree::Group(group)]);
 
-                let parser = |content: ParseStream| -> Result<Capture> {
-                    Capture::parse(&content, &mut ctx)
-                };
+                let parser =
+                    |content: ParseStream| -> Result<Capture> { Capture::parse(content, &mut ctx) };
                 let capture = parser.parse2(content)?;
                 let span = capture.span;
                 let pattern = Pattern {
-                    kind: PatternKind::Capture(capture),
+                    kind: PatternKind::Capture(Box::new(capture)),
                     span,
                     meta: None,
                 };
