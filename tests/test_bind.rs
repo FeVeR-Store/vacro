@@ -1,6 +1,9 @@
 use quote::quote;
+use std::str::FromStr;
 use syn::{Ident, LitInt, Type};
 use vacro::bind;
+
+use proc_macro2::TokenStream;
 
 // 测试最基础的具名捕获
 #[test]
@@ -92,6 +95,24 @@ fn test_enum_capture() {
         TestEnum3::Var1(_id) => panic!("Expected Var2"),
         TestEnum3::Var2(lit) => assert_eq!(lit.base10_digits(), "456"),
     }
+}
+
+// 测试自定义关键字与符号
+#[test]
+fn test_custom_keyword_symbol() {
+    // quote 会分词为 <- >，因此手动构建注入
+    let sym = TokenStream::from_str("<->").unwrap();
+    let input = quote!( pair my_var1 #sym my_var2 );
+
+    // 期望解析: CustomKeyword(pair) Ident, CustomSymbol(<->), Ident
+    bind!(
+        let res = (input -> pair #(@: Ident) <-> #(@: Ident));
+    );
+
+    // assert!(res.is_ok());
+    let (var1, var2) = res.unwrap(); // capture! 生成元组
+    assert_eq!(var1.to_string(), "my_var1");
+    assert_eq!(var2.to_string(), "my_var2");
 }
 
 // 测试解析失败的情况
