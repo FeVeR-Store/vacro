@@ -117,7 +117,7 @@ impl TraceSession {
                 });
 
                 if let Some(writer) = borrow.as_mut() {
-                    if let Err(e) = writeln!(writer, "{}", msg.to_string()) {
+                    if let Err(e) = writeln!(writer, "{}", msg) {
                         eprintln!("[Vacro Trace Error] Failed to write to log: {}", e);
                     }
                 }
