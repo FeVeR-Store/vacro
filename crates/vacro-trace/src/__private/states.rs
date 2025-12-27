@@ -1,31 +1,34 @@
-use serde_json::json;
-
 use crate::__private::cargo::metadata;
 use crate::__private::constant::{self, MACRO_EXPAND};
-use crate::__private::model::TraceEvent;
+use crate::__private::model::{TraceEntry, TraceEvent};
 use crate::__private::utils::now;
 use std::cell::RefCell;
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
+use std::path::PathBuf;
 
 thread_local! {
+    static VACRO_DIRECTORY: RefCell<PathBuf> = {
+        let target_directory = if let Ok(dir) = std::env::var("CARGO_TARGET_DIR") {
+            std::path::PathBuf::from(dir)
+        } else {
+            match metadata() {
+                Ok(metadata) => metadata.target_directory,
+                Err(e) => {
+                    eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
+                    std::env::current_dir().ok().unwrap_or_else(|| PathBuf::from("target"))
+                }
+            }
+        };
+        let vacro_directory = target_directory.join("vacro");
+        RefCell::new(vacro_directory)
+    };
     static WRITER: RefCell<Option<BufWriter<File>>> = const { RefCell::new(None) };
     static CURRENT_CONTEXT: RefCell<Option<TraceSession>> = const { RefCell::new(None) };
 }
 
 fn create_writer(session: &TraceSession) -> Option<BufWriter<File>> {
-    let target_directory = if let Ok(dir) = std::env::var("CARGO_TARGET_DIR") {
-        std::path::PathBuf::from(dir)
-    } else {
-        match metadata() {
-            Ok(metadata) => metadata.target_directory,
-            Err(e) => {
-                eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
-                std::env::current_dir().ok()?.join("target")
-            }
-        }
-    };
-    let vacro_directory = target_directory.join("vacro");
+    let vacro_directory = VACRO_DIRECTORY.with(|dir| dir.borrow().clone());
     if let Err(e) = fs::create_dir_all(&vacro_directory) {
         eprintln!(
             "[Vacro Trace Warning] Failed to create vacro directory: {}",
@@ -49,6 +52,7 @@ pub struct TraceSession {
     pub macro_name: String, // 例如 "my_macro"
     pub crate_name: String, // 调用宏的 crate
     pub timestamp: u64,
+    pub path: PathBuf,
 }
 
 #[allow(dead_code)]
@@ -62,7 +66,7 @@ impl TraceSession {
             name: MACRO_EXPAND.to_string(),
             time: now(),
         };
-        Self::emit(&event);
+        Self::emit(event);
         SessionGuard
     }
     pub fn new() -> Self {
@@ -73,11 +77,13 @@ impl TraceSession {
             std::env::var(constant::CARGO_CRATE_NAME).unwrap_or_else(|_| "unknown".to_string());
         let timestamp = now();
 
+        let path = VACRO_DIRECTORY.with(|dir| dir.borrow().clone());
         Self {
             id,
             macro_name,
             crate_name,
             timestamp,
+            path,
         }
     }
     pub fn macro_name(macro_name: &str) {
@@ -99,7 +105,7 @@ impl TraceSession {
     pub fn get_session() -> Option<TraceSession> {
         CURRENT_CONTEXT.with(|ctx| ctx.borrow().clone())
     }
-    pub fn emit(event: &TraceEvent) {
+    pub fn emit(event: TraceEvent) {
         if let Some(session) = Self::get_session() {
             WRITER.with(|cell| {
                 let mut borrow = cell.borrow_mut();
@@ -108,16 +114,16 @@ impl TraceSession {
                     *borrow = create_writer(&session);
                 }
 
-                let msg = json!({
-                    "id": session.id,
-                    "macro_name": session.macro_name,
-                    "crate_name": session.crate_name,
-                    "timestamp": session.timestamp,
-                    "message": event
-                });
+                let msg = TraceEntry {
+                    id: session.id,
+                    macro_name: session.macro_name,
+                    crate_name: session.crate_name,
+                    timestamp: session.timestamp,
+                    message: event,
+                };
 
                 if let Some(writer) = borrow.as_mut() {
-                    if let Err(e) = writeln!(writer, "{}", msg) {
+                    if let Err(e) = writeln!(writer, "{}", serde_json::to_string(&msg).unwrap()) {
                         eprintln!("[Vacro Trace Error] Failed to write to log: {}", e);
                     }
                 }
@@ -142,7 +148,7 @@ impl Drop for SessionGuard {
             name: MACRO_EXPAND.to_string(),
             time: now(),
         };
-        TraceSession::emit(&event);
+        TraceSession::emit(event);
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = None);
         WRITER.with(|cell| {
             if let Ok(mut borrow) = cell.try_borrow_mut() {
