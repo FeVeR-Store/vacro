@@ -21,6 +21,7 @@ members = [
   "crates/vacro-report",
   "crates/vacro-report-macro",
   "crates/vacro-trace",
+  "crates/vacro-trace/tests/fixture"
 ]
 
 [workspace.dependencies]

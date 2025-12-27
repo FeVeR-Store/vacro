@@ -38,12 +38,5 @@ pub fn log(level: String, message: String) {
 }
 
 fn emit_event(event: &TraceEvent) {
-    match &serde_json::to_string(event) {
-        Ok(json) => {
-            TraceSession::writeln(json);
-        }
-        Err(e) => {
-            eprintln!("[Vacro Trace Error] Failed to serialize trace event: {}", e);
-        }
-    }
+    TraceSession::emit(event);
 }
