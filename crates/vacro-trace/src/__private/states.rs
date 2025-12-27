@@ -12,11 +12,15 @@ thread_local! {
 }
 
 fn create_writer(session: &TraceSession) -> Option<BufWriter<File>> {
-    let target_directory = match metadata() {
-        Ok(metadata) => metadata.target_directory,
-        Err(e) => {
-            eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
-            std::env::current_dir().ok()?.join("target")
+    let target_directory = if let Ok(dir) = std::env::var("CARGO_TARGET_DIR") {
+        std::path::PathBuf::from(dir)
+    } else {
+        match metadata() {
+            Ok(metadata) => metadata.target_directory,
+            Err(e) => {
+                eprintln!("[Vacro Trace Warning] Failed to get metadata: {}", e);
+                std::env::current_dir().ok()?.join("target")
+            }
         }
     };
     let vacro_directory = target_directory.join("vacro");
@@ -47,9 +51,10 @@ pub struct TraceSession {
 
 #[allow(dead_code)]
 impl TraceSession {
-    pub fn enter(macro_name: &str) -> SessionGuard {
+    pub fn enter(macro_name: &str, crate_name: &str) -> SessionGuard {
         let mut session = Self::new();
         session.macro_name = macro_name.to_string();
+        session.crate_name = crate_name.to_string();
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = Some(session));
         let event = TraceEvent::PhaseStart {
             name: MACRO_EXPAND.to_string(),
@@ -116,8 +121,7 @@ impl TraceSession {
                 }
             });
         } else {
-            // Debug logging to help understand why logs are missing
-            // eprintln!("[Vacro Trace Warning] writeln called but no session found.");
+            eprintln!("[Vacro Trace Warning] writeln called but no session found.");
         }
     }
 }
