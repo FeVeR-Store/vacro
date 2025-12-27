@@ -6,4 +6,5 @@ edition = "2021"
 # 这样方便我们隔离查找 trace 文件
 
 [dependencies]
+quote = { workspace = true }
 vacro-trace = { path = "../..", version = "0.1.0", features = ["standalone"] }

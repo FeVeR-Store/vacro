@@ -2,6 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use rust_format::Formatter;
+
 #[test]
 fn test_end_to_end_logging() {
     // 1. 定位 Fixture 项目路径
@@ -82,8 +84,13 @@ fn test_end_to_end_logging() {
         log_content.contains(r#""tag":"Input Code""#),
         "Missing Snapshot tag"
     );
+
+    let pretty_code = rust_format::PrettyPlease::default()
+        .format_str(r#"struct A { x: i32 }"#)
+        .unwrap_or("struct A {\n    x: i32,\n}\n".to_string());
+    let formatted_code = pretty_code.replace("\n", "\\n");
     assert!(
-        log_content.contains(r#"struct A { x: i32 }"#),
+        log_content.contains(&formatted_code),
         "Missing Snapshot code content"
     );
     assert!(
