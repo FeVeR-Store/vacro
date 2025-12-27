@@ -1,3 +1,5 @@
+use serde_json::json;
+
 use crate::__private::cargo::metadata;
 use crate::__private::constant::{self, MACRO_EXPAND};
 use crate::__private::model::TraceEvent;
@@ -60,7 +62,7 @@ impl TraceSession {
             name: MACRO_EXPAND.to_string(),
             time: now(),
         };
-        Self::writeln(&serde_json::to_string(&event).unwrap());
+        Self::emit(&event);
         SessionGuard
     }
     pub fn new() -> Self {
@@ -97,7 +99,7 @@ impl TraceSession {
     pub fn get_session() -> Option<TraceSession> {
         CURRENT_CONTEXT.with(|ctx| ctx.borrow().clone())
     }
-    pub fn writeln(message: &str) {
+    pub fn emit(event: &TraceEvent) {
         if let Some(session) = Self::get_session() {
             WRITER.with(|cell| {
                 let mut borrow = cell.borrow_mut();
@@ -106,16 +108,16 @@ impl TraceSession {
                     *borrow = create_writer(&session);
                 }
 
+                let msg = json!({
+                    "id": session.id,
+                    "macro_name": session.macro_name,
+                    "crate_name": session.crate_name,
+                    "timestamp": session.timestamp,
+                    "message": event
+                });
+
                 if let Some(writer) = borrow.as_mut() {
-                    if let Err(e) = writeln!(
-                        writer,
-                        r#"{{ id: "{}", macro_name: "{}", crate_name: "{}", timestamp: {}, message: {} }}"#,
-                        session.id,
-                        session.macro_name,
-                        session.crate_name,
-                        session.timestamp,
-                        message
-                    ) {
+                    if let Err(e) = writeln!(writer, "{}", msg.to_string()) {
                         eprintln!("[Vacro Trace Error] Failed to write to log: {}", e);
                     }
                 }
@@ -140,7 +142,7 @@ impl Drop for SessionGuard {
             name: MACRO_EXPAND.to_string(),
             time: now(),
         };
-        TraceSession::writeln(&serde_json::to_string(&event).unwrap());
+        TraceSession::emit(&event);
         CURRENT_CONTEXT.with(|ctx| *ctx.borrow_mut() = None);
         WRITER.with(|cell| {
             if let Ok(mut borrow) = cell.try_borrow_mut() {
