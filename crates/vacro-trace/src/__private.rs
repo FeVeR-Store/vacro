@@ -1,8 +1,8 @@
 pub(crate) mod cargo;
 pub(crate) mod constant;
 pub(crate) mod error;
-pub(crate) mod model;
-pub(crate) mod states;
+pub mod model;
+pub mod states;
 pub(crate) mod utils;
 
 pub use quote::quote;
@@ -25,7 +25,7 @@ pub fn snapshot(tag: &str, ast: String) {
         code: formatted,
         time: now(),
     };
-    emit_event(&event);
+    emit_event(event);
 }
 
 pub fn log(level: String, message: String) {
@@ -34,9 +34,9 @@ pub fn log(level: String, message: String) {
         message,
         time: now(),
     };
-    emit_event(&event);
+    emit_event(event);
 }
 
-fn emit_event(event: &TraceEvent) {
+fn emit_event(event: TraceEvent) {
     TraceSession::emit(event);
 }
