@@ -16,5 +16,5 @@ uuid = { version = "1.19.0", features = ["v4"] }
 vacro = { path = "../..", features = ["report"] }
 
 [features]
-default = ["standalone"]
+default = []
 standalone = []

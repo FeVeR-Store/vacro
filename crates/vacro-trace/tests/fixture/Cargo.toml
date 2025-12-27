@@ -1,0 +1,9 @@
+[package]
+name = "vacro-trace-fixture"
+version = "0.1.0"
+edition = "2021"
+# 当我们运行测试时，target 会在这个目录下生成，而不是在 workspace 的 target 下，
+# 这样方便我们隔离查找 trace 文件
+
+[dependencies]
+vacro-trace = { path = "../..", version = "0.1.0", features = ["standalone"] }
