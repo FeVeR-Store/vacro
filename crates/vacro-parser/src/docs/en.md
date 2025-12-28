@@ -1,0 +1,92 @@
+# Vacro Parser
+
+**The Declarative Parsing Kernel for Vacro**
+
+## Introduction
+
+**Vacro Parser** is the core declarative parsing engine of the Vacro framework. It provides a `macro_rules!`-like DSL to simplify the writing of `syn`-based parsers for Rust Procedural Macros.
+
+It allows you to define AST structures and parsing logic declaratively, eliminating the boilerplate of imperative `input.parse()?` calls.
+
+## Core Features
+
+### 1. `define!`: Define Parsing Structs
+
+Use `define!` to define a struct that automatically implements `syn::parse::Parse`.
+
+```rust
+# use syn::{Ident, Type, GenericParam, FnArg, parse_macro_input, Token};
+# use vacro::define;
+// Define a struct named MyFn, it automatically implements the Parse trait
+vacro::define!(MyFn:
+    fn
+    #(?: <#(generic*[,]: GenericParam)>)
+    #(name: Ident)
+    ( #(args*[,]: FnArg) )
+    #(?: -> #(ret: Type))
+);
+
+fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    // Usage
+    let my_fn = parse_macro_input!(input as MyFn);
+    println!("Function name: {}", my_fn.name);
+    proc_macro::TokenStream::new()
+}
+# fn main() {}
+```
+
+### 2. `bind!`: On-the-fly Parsing
+
+Use `bind!` to consume a portion of a `TokenStream` within existing imperative logic.
+
+```rust
+# use syn::{Ident, Type, Token, Result};
+# use vacro::bind;
+# fn parser(input: proc_macro2::TokenStream) -> Result<()> {
+// Parse a function signature pattern on the fly
+bind!(
+    let captured = (input ->
+        fn #(name: Ident) #(?: -> #(ret: Type))
+    )?;
+);
+
+// Access captured fields directly
+println!("Name: {}", captured.name);
+if let Some(ret_type) = captured.ret {
+    // ...
+}
+# Ok(())
+# }
+# fn main() {}
+```
+
+## Syntax Reference
+
+| Syntax | Description | Result Type | Example |
+| :--- | :--- | :--- | :--- |
+| `literal` | Matches and consumes exact tokens | `!` | `fn`, `->`, `struct` |
+| `#(x: T)` | **Named Capture**: Captures type `T` into field `x` | `T` | `#(name: Ident)` |
+| `#(x?: T)` | **Named Optional**: Attempts to parse; skips if failed | `Option<T>` | `#(ret?: Type)` |
+| `#(x*[sep]: T)` | **Named Iter**: Parses by separator | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
+| `#(T)` | **Anonymous Match**: Validates `T` exists but doesn't capture | `!` | `#(Ident)` |
+| `#(?: T)` | **Anonymous Optional**: Validation only | `!` | `#(?: Ident)` |
+| `#(*[sep]: T)` | **Anonymous Iter**: Validation only | `!` | `#(*[,]: Ident)` |
+
+## Polymorphic Capture (Enum Parsing)
+
+Vacro supports parsing "polymorphic" structures, where a position in the input stream can be one of multiple types.
+
+```rust
+# use syn::{Ident, Expr, Type, LitInt};
+# use vacro::define;
+vacro::define!(MyPoly:
+    #(data: MyEnum {
+        Ident,                            // 1. Shorthand: Match Ident, produces MyEnum::Ident(Ident)
+        syn::Type,                        // 2. Shorthand: Match Type, produces MyEnum::Type(syn::Type)
+        Integer: syn::LitInt,             // 3. Alias: Match LitInt, produces MyEnum::Integer(LitInt)
+        Function: fn #(name: Ident),      // 4. Pattern: Produces MyEnum::Function { name: Ident }
+        Tuple: (#(@: Ident), #(@: Expr)), // 5. Pattern: Produces MyEnum::Tuple(Ident, Expr)
+    })
+);
+# fn main() {}
+```

@@ -8,7 +8,7 @@
 //!
 //! <div class="doc-en">
 //!
-#![doc = include_str!("../readme.md")]
+#![doc = include_str!("docs/en.md")]
 //!
 //!</div>
 
