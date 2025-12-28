@@ -5,11 +5,10 @@ use std::process::Command;
 use rust_format::Formatter;
 
 fn fmt_code(code: &str) -> String {
-    let formatted_code = rust_format::PrettyPlease::default()
+    rust_format::PrettyPlease::default()
         .format_str(code)
         .unwrap_or(code.to_string())
-        .replace("\n", "\\n");
-    return formatted_code;
+        .replace("\n", "\\n")
 }
 
 #[test]

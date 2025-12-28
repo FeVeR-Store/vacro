@@ -25,6 +25,12 @@ pub struct Analyzer {
     snapshot_history: HashMap<String, String>,
 }
 
+impl Default for Analyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Analyzer {
     pub fn new() -> Self {
         Self {

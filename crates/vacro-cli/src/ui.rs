@@ -54,12 +54,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
         } else {
             Some(app.search_input.as_str())
         }
+    } else if app.search_query.is_empty() {
+        None
     } else {
-        if app.search_query.is_empty() {
-            None
-        } else {
-            Some(app.search_query.as_str())
-        }
+        Some(app.search_query.as_str())
     };
 
     f.render_stateful_widget(

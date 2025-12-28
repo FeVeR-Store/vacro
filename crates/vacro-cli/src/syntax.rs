@@ -17,7 +17,7 @@ static THEME_SET: OnceLock<ThemeSet> = OnceLock::new();
 ///
 /// 输出:
 /// - `Vec<Span>`: 带有颜色的文本片段列表，可直接用于 Ratatui 渲染
-pub fn highlight_line<'a>(line: &'a str, syntax_extension: &str) -> Vec<Span<'static>> {
+pub fn highlight_line(line: &str, syntax_extension: &str) -> Vec<Span<'static>> {
     // 懒加载初始化
     let ps = SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines);
     let ts = THEME_SET.get_or_init(ThemeSet::load_defaults);
