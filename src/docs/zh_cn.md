@@ -1,18 +1,6 @@
 # Vacro
 
-<div align="center">
-
 **Rust 过程宏的渐进式 DevX 框架**
-
-[<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
-[<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
-
-[English](./README.md) | [简体中文](./README_CN.md)
-
-</div>
-
----
 
 ## 设计理念
 
@@ -20,35 +8,30 @@
 
 **Vacro** 已经从一个简单的解析库演进为一个完整的工具链，旨在提升过程宏开发全生命周期的 **开发者体验 (DevX)**：
 
-1.  **解析 (Parsing)**：以声明式的方式编写解析逻辑。
-2.  **调试 (Debugging)**：可视化解析路径，精准洞察宏内部发生了什么。
-3.  **报告 (Reporting)**：轻松生成优雅且精确的编译器错误信息。
+1. **解析 (Parsing)**：以声明式的方式编写解析逻辑。
+2. **调试 (Debugging)**：可视化解析路径，精准洞察宏内部发生了什么。
+3. **报告 (Reporting)**：轻松生成优雅且精确的编译器错误信息。
 
 ## 生态系统
 
 Vacro 被设计为一个模块化框架。你可以使用功能齐全的 `vacro` 入口，也可以根据需要挑选特定的底层组件。
 
-| 功能 | Crate | 描述 |
-| :--- | :--- | :--- |
-| **Parsing** | [`vacro-parser`](./crates/vacro-parser) | **声明式解析**。类似 `macro_rules!` 的 DSL，自动实现 `syn::Parse`。 |
-| **Debugging** | [`vacro-trace`](./crates/vacro-trace) | **可视化追踪**。捕获快照和日志，以解决复杂的语法调试问题。 |
-| **Visualization** | [`vacro-cli`](./crates/vacro-cli) | **终端工具**。一个 TUI 界面，用于检查由 `vacro-trace` 捕获的追踪和快照 Diff。 |
-| **Diagnostics** | [`vacro-report`](./crates/vacro-report) | **错误报告**。简化过程宏中诊断信息的构建和发射。 |
+| 功能              | Crate          | 描述                                                                          |
+| :---------------- | :------------- | :---------------------------------------------------------------------------- |
+| **Parsing**       | `vacro-parser` | **声明式解析**。类似 `macro_rules!` 的 DSL，自动实现 `syn::Parse`。           |
+| **Debugging**     | `vacro-trace`  | **可视化追踪**。捕获快照和日志，以解决复杂的语法调试问题。                    |
+| **Visualization** | `vacro-cli`    | **终端工具**。一个 TUI 界面，用于检查由 `vacro-trace` 捕获的追踪和快照 Diff。 |
+| **Diagnostics**   | `vacro-report` | **错误报告**。简化过程宏中诊断信息的构建和发射。                              |
 
 ## 快速开始
-
-在 `Cargo.toml` 中添加 `vacro` 并启用你需要的 DevX 特性：
-
-```toml
-[dependencies]
-vacro = { version = "0.2", features = ["full"] }
-```
 
 ### 1. 声明式解析 (`vacro-parser`)
 
 像写正则一样定义你的宏输入语法：
 
 ```rust
+# #[cfg(feature = "parser")]
+# mod parser_example {
 use vacro::prelude::*;
 
 // 定义语法: "fn" <name> "(" <args> ")"
@@ -57,6 +40,7 @@ vacro::define!(MyMacroInput:
     #(name: syn::Ident)
     ( #(args*[,]: syn::Type) )
 );
+# }
 ```
 
 更多内容参见：[vacro-parser](https://docs.rs/vacro-parser)
@@ -66,11 +50,17 @@ vacro::define!(MyMacroInput:
 对你的 TokenStream 进行快照，观察它如何演变。在 `vacro-cli` 中查看 Diff。
 
 ```rust
+# #[cfg(feature = "trace")]
+# mod trace_example {
 use vacro::prelude::*;
 
+# fn main() {
+let tokens = quote::quote! { struct A; };
 // 使用 tag 捕获快照。
 // 如果使用相同的 tag 调用多次，vacro-cli 将展示它们之间的 Diff。
 vacro::snapshot!("expand", tokens);
+# }
+# }
 ```
 
 更多内容参见：[vacro-trace](https://docs.rs/vacro-trace)
@@ -80,15 +70,18 @@ vacro::snapshot!("expand", tokens);
 提供卓越的错误报告能力，告别通用的 `unexpected identifier` 错误。
 
 ```rust
+# #[cfg(feature = "report")]
+# mod report_example {
 use vacro::prelude::*;
 
 #[vacro::report::scope]
-fn my_macro_impl(input: TokenStream) -> TokenStream {
+fn my_macro_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     // 如果这里失败（例如构造了无效语法），
     // Vacro 会捕获它并发出指向代码的精确错误。
-    let f: ItemFn = parse_quote!( fn foo () { >>invalid<< } );
-    quote!(#f)
+    // let f: syn::ItemFn = parse_quote!( fn foo () { >>invalid<< } );
+    quote::quote!()
 }
+# }
 ```
 
 更多内容参见：[vacro-report](https://docs.rs/vacro-report)
@@ -108,7 +101,7 @@ cargo vacro
 
 编写如下测试代码，运行测试后即可在 CLI 中查看捕获的日志和快照演变：
 
-```rust
+```rust,ignore
 #[test]
 #[instrument]
 fn test_function() {
@@ -145,16 +138,3 @@ fn test_function() {
 </div>
 
 更多内容参见：[vacro-cli](https://crates.io/crates/vacro-cli)
-
-## 路线图 (Roadmap)
-
-我们目前正处于积极开发阶段，正在向 DevX 框架转型。
-
-- [x] **文档**: 多语言支持 (`vacro-doc-i18n`)。
-- [x] **解析**: 核心 DSL 实现 (`vacro-parser`)。
-- [x] **诊断**: 错误报告集成 (`vacro-report`)。
-- [x] **调试**: `vacro-trace` 和 `vacro-cli` 的实现。
-
-## License
-
-Licensed under either of Apache License, Version 2.0 or MIT license at your option.
