@@ -16,12 +16,13 @@ rustdoc-args = ["--html-in-header", "docs/doc-i18n.html"]
 
 [workspace]
 members = [
+  "crates/vacro-analysis",
   "crates/vacro-doc-i18n",
   "crates/vacro-parser",
   "crates/vacro-report",
   "crates/vacro-report-macro",
   "crates/vacro-trace",
-  "crates/vacro-trace/tests/fixture"
+  "crates/vacro-trace/tests/fixture",
 ]
 
 [workspace.dependencies]
