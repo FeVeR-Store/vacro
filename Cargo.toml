@@ -39,13 +39,35 @@ trybuild = "1.0"
 vacro-doc-i18n = "0.1.0"
 vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", optional = true }
 vacro-report = { path = "./crates/vacro-report", version = "0.1.0", default-features = false, optional = true }
+vacro-trace = { path = "./crates/vacro-trace", version = "0.1.0", optional = true }
+
+[dev-dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
 
 [features]
-default = ["parser", "report"]
-doc-all = ["vacro-doc-i18n/doc-all"]
-doc-cn = ["vacro-doc-i18n/doc-cn"]
-doc-en = ["vacro-doc-i18n/doc-en"]
+default = []
+doc-all = [
+  "vacro-doc-i18n/doc-all",
+  "vacro-parser/doc-all",
+  "vacro-report/doc-all",
+  "vacro-trace/doc-all"
+]
+doc-cn = [
+  "vacro-doc-i18n/doc-cn",
+  "vacro-parser/doc-cn",
+  "vacro-report/doc-cn",
+  "vacro-trace/doc-cn"
+]
+doc-en = [
+  "vacro-doc-i18n/doc-en",
+  "vacro-parser/doc-en",
+  "vacro-report/doc-en",
+  "vacro-trace/doc-en"
+]
 extra-traits = ["vacro-parser/extra-traits"]
-full = ["parser", "report"]
+full = ["parser", "report", "trace"]
 parser = ["dep:vacro-parser"]
 report = ["dep:vacro-report"]
+trace = ["dep:vacro-trace"]

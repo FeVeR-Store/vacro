@@ -15,8 +15,8 @@
 使用 `define!` 定义一个结构体，它会自动实现 `syn::parse::Parse`。
 
 ```rust
-# use syn::{Ident, Type, GenericParam, FnArg, parse_macro_input, Token};
-# use vacro::define;
+use syn::{Ident, Type, GenericParam, FnArg, parse_macro_input, Token};
+use vacro::define;
 // 定义一个名为 MyFn 的结构体，它会自动实现 Parse trait
 vacro::define!(MyFn:
     fn
@@ -32,7 +32,7 @@ fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     println!("Function name: {}", my_fn.name);
     proc_macro::TokenStream::new()
 }
-# fn main() {}
+fn main() {}
 ```
 
 ### 2. `bind!`：即时流解析
@@ -40,24 +40,24 @@ fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 在现有的命令式逻辑中，使用 `bind!` 快速消费一段 `TokenStream`。
 
 ```rust
-# use syn::{Ident, Type, Token, Result};
-# use vacro::bind;
-# fn parser(input: proc_macro2::TokenStream) -> Result<()> {
-// 即时解析函数签名模式
-bind!(
-    let captured = (input ->
-        fn #(name: Ident) #(?: -> #(ret: Type))
-    )?;
-);
+use syn::{Ident, Type, Token, Result};
+use vacro::bind;
+fn parser(input: syn::parse::ParseStream) -> Result<()> {
+    // 即时解析函数签名模式
+    bind!(
+        let captured = (input ->
+            fn #(name: Ident) #(?: -> #(ret: Type))
+        )?;
+    );
 
-// 直接访问捕获的字段
-println!("Name: {}", captured.name);
-if let Some(ret_type) = captured.ret {
-    // ...
+    // 直接访问捕获的字段
+    println!("Name: {}", captured.name);
+    if let Some(ret_type) = captured.ret {
+        // ...
+    }
+    Ok(())
 }
-# Ok(())
-# }
-# fn main() {}
+fn main() {}
 ```
 
 ## 语法参考
@@ -77,8 +77,8 @@ if let Some(ret_type) = captured.ret {
 Vacro 支持解析“多态”结构，即输入流中的某个位置可能是多种类型之一。
 
 ```rust
-# use syn::{Ident, Expr, Type, LitInt};
-# use vacro::define;
+use syn::{Ident, Expr, Type, LitInt};
+use vacro::define;
 vacro::define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. 简写：匹配 Ident，生成 MyEnum::Ident(Ident)
@@ -88,5 +88,5 @@ vacro::define!(MyPoly:
         Tuple: (#(@: Ident), #(@: Expr)), // 5. 模式：生成 MyEnum::Tuple(Ident, Expr)
     })
 );
-# fn main() {}
+fn main() {}
 ```

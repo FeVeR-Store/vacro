@@ -1,18 +1,6 @@
 # Vacro
 
-<div align="center">
-
 **The Progressive DevX Framework for Rust Procedural Macros**
-
-[<img alt="github" src="https://img.shields.io/badge/github-FeVeR_Store/vacro-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/FeVeR-Store/vacro)
-[<img alt="crates.io" src="https://img.shields.io/crates/v/vacro.svg?style=for-the-badge&color=fc8d62&logo=rust" height="20">](https://crates.io/crates/vacro)
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-vacro-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs" height="20">](https://docs.rs/vacro)
-
-[English](./README.md) | [简体中文](./README_CN.md)
-
-</div>
-
----
 
 ## The Philosophy
 
@@ -20,9 +8,9 @@ Writing procedural macros in Rust shouldn't be a nightmare filled with boilerpla
 
 **Vacro** has evolved from a simple parsing library into a complete toolchain designed to improve the **Developer Experience (DevX)** across the entire macro lifecycle:
 
-1.  **Parsing**: Write parsing logic in a declarative way.
-2.  **Debugging**: Visualize the parsing path to see exactly what happens inside the macro.
-3.  **Reporting**: Easily generate elegant and precise compiler error messages.
+1. **Parsing**: Write parsing logic in a declarative way.
+2. **Debugging**: Visualize the parsing path to see exactly what happens inside the macro.
+3. **Reporting**: Easily generate elegant and precise compiler error messages.
 
 ## The Ecosystem
 
@@ -30,25 +18,20 @@ Vacro is designed as a modular framework. You can use the fully-featured `vacro`
 
 | Feature | Crate | Description |
 | :--- | :--- | :--- |
-| **Parsing** | [`vacro-parser`](./crates/vacro-parser) | **Declarative Parsing.** A DSL similar to `macro_rules!` that automatically implements `syn::Parse`. |
-| **Debugging** | [`vacro-trace`](./crates/vacro-trace) | **Visual Tracing.** Captures snapshots and logs to solve complex grammar debugging issues. |
-| **Visualization** | [`vacro-cli`](./crates/vacro-cli) | **TUI Tool.** A terminal interface to inspect traces and diff snapshots captured by `vacro-trace`. |
-| **Diagnostics** | [`vacro-report`](./crates/vacro-report) | **Error Reporting.** Simplifies the construction and emission of diagnostic messages in proc-macros. |
+| **Parsing** | `vacro-parser` | **Declarative Parsing.** A DSL similar to `macro_rules!` that automatically implements `syn::Parse`. |
+| **Debugging** | `vacro-trace` | **Visual Tracing.** Captures snapshots and logs to solve complex grammar debugging issues. |
+| **Visualization** | `vacro-cli` | **TUI Tool.** A terminal interface to inspect traces and diff snapshots captured by `vacro-trace`. |
+| **Diagnostics** | `vacro-report` | **Error Reporting.** Simplifies the construction and emission of diagnostic messages in proc-macros. |
 
 ## Quick Start
-
-Add `vacro` to your `Cargo.toml` and enable the DevX features you need:
-
-```toml
-[dependencies]
-vacro = { version = "0.2", features = ["full"] }
-```
 
 ### 1. Declarative Parsing (`vacro-parser`)
 
 Define your macro's input grammar like writing regex:
 
 ```rust
+# #[cfg(feature = "parser")]
+# mod parser_example {
 use vacro::prelude::*;
 
 // Define syntax: "fn" <name> "(" <args> ")"
@@ -57,6 +40,7 @@ vacro::define!(MyMacroInput:
     #(name: syn::Ident)
     ( #(args*[,]: syn::Type) )
 );
+# }
 ```
 
 See more: [vacro-parser](https://docs.rs/vacro-parser)
@@ -66,29 +50,38 @@ See more: [vacro-parser](https://docs.rs/vacro-parser)
 Take snapshots of your TokenStream to see how it evolves. View the diffs in `vacro-cli`.
 
 ```rust
+# #[cfg(feature = "trace")]
+# mod trace_example {
 use vacro::prelude::*;
 
+# fn main() {
+let tokens = quote::quote! { struct A; };
 // Capture a snapshot with a tag.
 // If called multiple times with the same tag, vacro-cli will show the diff.
 vacro::snapshot!("expand", tokens);
+# }
+# }
 ```
 
 See more: [vacro-trace](https://docs.rs/vacro-trace)
 
 ### 3. Diagnostic Reporting (`vacro-report`)
 
-Provides superior error reporting capabilities, saying goodbye to generic `unexpected identifier` errors.
+Provides superior error reporting capabilities.
 
 ```rust
+# #[cfg(feature = "report")]
+# mod report_example {
 use vacro::prelude::*;
 
 #[vacro::report::scope]
-fn my_macro_impl(input: TokenStream) -> TokenStream {
+fn my_macro_impl(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     // If this fails (e.g., invalid syntax constructed),
     // Vacro will catch it and emit a precise error pointing to the code.
-    let f: ItemFn = parse_quote!( fn foo () { >>invalid<< } );
-    quote!(#f)
+    // let f: syn::ItemFn = parse_quote!( fn foo () { >>invalid<< } );
+    quote::quote!()
 }
+# }
 ```
 
 See more: [vacro-report](https://docs.rs/vacro-report)
@@ -108,7 +101,7 @@ cargo vacro
 
 Run the following test, then open the CLI to inspect the captured logs and snapshot evolution:
 
-```rust
+```rust,ignore
 #[test]
 #[instrument]
 fn test_function() {
@@ -145,16 +138,3 @@ fn test_function() {
 </div>
 
 See more: [vacro-cli](https://crates.io/crates/vacro-cli)
-
-## Roadmap
-
-We are currently in active development, transitioning towards a DevX Framework.
-
-- [x] **Documentation**: Multi-language support (`vacro-doc-i18n`).
-- [x] **Parsing**: Core DSL implementation (`vacro-parser`).
-- [x] **Diagnostics**: Error reporting integration (`vacro-report`).
-- [x] **Debugging**: Implementation of `vacro-trace` and `vacro-cli`.
-
-## License
-
-Licensed under either of Apache License, Version 2.0 or MIT license at your option.
