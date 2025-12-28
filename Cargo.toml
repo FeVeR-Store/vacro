@@ -17,6 +17,7 @@ rustdoc-args = ["--html-in-header", "docs/doc-i18n.html"]
 [workspace]
 members = [
   "crates/vacro-analysis",
+  "crates/vacro-cli",
   "crates/vacro-doc-i18n",
   "crates/vacro-parser",
   "crates/vacro-report",

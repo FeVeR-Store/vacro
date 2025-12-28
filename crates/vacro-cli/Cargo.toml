@@ -1,0 +1,22 @@
+[package]
+name = "vacro-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+crossterm = "0.29"
+ratatui = { version = "0.30", features = ["crossterm_0_29"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+similar = "2.7.0"
+syntect = "5.2"
+unicode-width = "0.1"
+vacro-analysis = { path = "../vacro-analysis" }
+vacro-trace = { path = "../vacro-trace", default-features = false, features = [
+  "types"
+] }
+
+
+[features]
+test = []
