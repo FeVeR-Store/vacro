@@ -2,6 +2,16 @@
 name = "vacro-cli"
 version = "0.1.0"
 edition = "2021"
+description = "TUI visualization tool for inspecting Vacro toolkits."
+readme = "README.md"
+repository = "https://github.com/FeVeR-Store/vacro"
+license = "MIT OR Apache-2.0"
+keywords = ["cli", "debug", "proc-macro", "tui", "visualization"]
+categories = ["command-line-utilities", "development-tools::debugging"]
+
+[[bin]]
+name = "cargo-vacro"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0"
@@ -12,11 +22,10 @@ serde_json = { workspace = true }
 similar = "2.7.0"
 syntect = "5.2"
 unicode-width = "0.1"
-vacro-analysis = { path = "../vacro-analysis" }
-vacro-trace = { path = "../vacro-trace", default-features = false, features = [
+vacro-analysis = { path = "../vacro-analysis", version = "0.1.0" }
+vacro-trace = { path = "../vacro-trace", version = "0.1.0", default-features = false, features = [
   "types"
 ] }
-
 
 [features]
 test = []
