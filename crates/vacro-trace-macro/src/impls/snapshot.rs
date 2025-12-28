@@ -1,9 +1,7 @@
 use crate::utils::crate_name;
 use proc_macro2::TokenStream;
 use quote::quote;
-#[cfg(not(test))]
-use syn::parse_quote;
-use syn::{parse::Parse, Expr, LitStr, Token};
+use syn::{parse::Parse, parse_quote, Expr, LitStr, Token};
 
 struct SnapshotInput {
     tag: String,
@@ -20,7 +18,6 @@ impl Parse for SnapshotInput {
     }
 }
 
-#[cfg_attr(test, vacro::report::scope)]
 pub fn snapshot_impl(input: TokenStream) -> syn::Result<TokenStream> {
     let input: SnapshotInput = parse_quote!(#input);
     let tag = input.tag;
