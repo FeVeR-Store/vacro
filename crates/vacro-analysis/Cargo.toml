@@ -2,10 +2,15 @@
 name = "vacro-analysis"
 version = "0.1.0"
 edition = "2021"
+description = "Analysis logic for Vacro trace data, used by vacro-cli."
+repository = "https://github.com/FeVeR-Store/vacro"
+license = "MIT OR Apache-2.0"
+keywords = ["analysis", "debug", "macros"]
+categories = ["development-tools::debugging"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-similar = "2.7.0"
-thiserror = "2.0"
-vacro-trace = { path = "../vacro-trace", features = ["types"] }
+vacro-trace = { path = "../vacro-trace", version = "0.1.0", default-features = false, features = [
+  "types"
+] }
