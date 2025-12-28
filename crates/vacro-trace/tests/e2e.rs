@@ -2,6 +2,15 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use rust_format::Formatter;
+
+fn fmt_code(code: &str) -> String {
+    rust_format::PrettyPlease::default()
+        .format_str(code)
+        .unwrap_or(code.to_string())
+        .replace("\n", "\\n")
+}
+
 #[test]
 fn test_end_to_end_logging() {
     // 1. 定位 Fixture 项目路径
@@ -79,11 +88,22 @@ fn test_end_to_end_logging() {
         "Missing ERROR log"
     );
     assert!(
-        log_content.contains(r#""tag":"Input Code""#),
-        "Missing Snapshot tag"
+        log_content.contains(r#""tag":"Field""#),
+        "Missing Snapshot tag [Field]"
     );
     assert!(
-        log_content.contains(r#"struct A { x: i32 }"#),
+        log_content.contains(r#""tag":"Struct""#),
+        "Missing Snapshot tag [Struct]"
+    );
+
+    let formatted_code = fmt_code(
+        r#"
+        #[derive(Debug)]
+        struct A { x: i32 }
+    "#,
+    );
+    assert!(
+        log_content.contains(&formatted_code),
         "Missing Snapshot code content"
     );
     assert!(

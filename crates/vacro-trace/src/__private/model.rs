@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TraceEvent {
     /// 阶段开始（例如 "Parsing", "Folding"）
     PhaseStart { name: String, time: u64 },
@@ -18,4 +18,13 @@ pub enum TraceEvent {
         message: String,
         time: u64,
     },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceEntry {
+    pub id: String,
+    pub macro_name: String,
+    pub crate_name: String,
+    pub timestamp: u64,
+    pub message: TraceEvent,
 }

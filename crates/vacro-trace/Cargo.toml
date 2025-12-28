@@ -10,7 +10,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = "2.0.17"
 uuid = { version = "1.19.0", features = ["v4"] }
-vacro-trace-macro = { path = "../vacro-trace-macro", version = "0.1.0" }
+vacro-trace-macro = { path = "../vacro-trace-macro", version = "0.1.0", optional = true }
 
 [features]
-standalone = ["vacro-trace-macro/standalone"]
+default = ["macros"]
+macros = ["dep:vacro-trace-macro"]
+standalone = ["macros", "vacro-trace-macro/standalone"]
+types = []
