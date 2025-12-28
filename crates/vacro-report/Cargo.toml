@@ -2,13 +2,26 @@
 name = "vacro-report"
 version = "0.1.0"
 edition = "2021"
+description = "Diagnostic reporting enhancements for Rust procedural macros, improving error messages."
+readme = "README.md"
+repository = "https://github.com/FeVeR-Store/vacro"
+license = "MIT OR Apache-2.0"
+keywords = ["diagnostics", "error-reporting", "macros", "proc-macro", "syn"]
+categories = [
+  "development-tools::debugging",
+  "development-tools::procedural-macro-helpers"
+]
 
 [dependencies]
 proc-macro2 = "1.0"
 rust-format = { workspace = true }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
+vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
 vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.0" }
 
 [features]
 default = ["standalone"]
+doc-all = ["vacro-doc-i18n/doc-all"]
+doc-cn = ["vacro-doc-i18n/doc-cn"]
+doc-en = ["vacro-doc-i18n/doc-en"]
 standalone = []
