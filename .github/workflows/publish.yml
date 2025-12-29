@@ -9,7 +9,7 @@ env:
   CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
 jobs:
-  publish:
+  publish-all:
     name: Publish Updated Crates
     runs-on: ubuntu-latest
     steps:
@@ -18,60 +18,68 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # 这一步定义了一个 bash 函数，用来检查版本并发布
-      # 逻辑：
-      # 1. 读取 Cargo.toml 里的版本号
-      # 2. 用 curl 问 crates.io 这个版本有了吗？
-      # 3. 有了 -> 跳过
-      # 4. 没有 -> cargo publish
-      - name: Define Publish Logic
-        id: publish_func
+      # 定义并执行发布逻辑
+      # 我们将所有发布步骤合并在一个 script 中，这样函数定义可以直接复用，
+      # 且不需要复杂的环境变量传递。
+      - name: Auto Publish
+        shell: bash
         run: |
-          echo 'publish_crate() {
-            CRATE_PATH=$1
-            CRATE_NAME=$2
+          # --- 函数定义 ---
+          publish_crate() {
+            local CRATE_PATH=$1
+            local CRATE_NAME=$2
 
-            VERSION=$(grep "^version" $CRATE_PATH/Cargo.toml | head -n 1 | cut -d '"' -f 2)
+            # 简单的 TOML 版本解析：查找 name = "..." 下方的 version = "..."
+            # 注意：这里假设 Cargo.toml 格式比较标准。
+            local VERSION=$(grep "^version" "$CRATE_PATH/Cargo.toml" | head -n 1 | cut -d '"' -f 2)
+
+            # 如果没找到版本号（比如 workspace 继承），可能需要调整 grep 逻辑
+            # 这里做个简单的防御
+            if [ -z "$VERSION" ]; then
+                echo "⚠️  Could not detect version for $CRATE_NAME in $CRATE_PATH. Skipping auto-check."
+                # 这种情况下尝试强制发布，让 cargo 决定
+                cargo publish -p "$CRATE_NAME" || true
+                return
+            fi
 
             echo "------------------------------------------------"
-            echo "Checking $CRATE_NAME (v$VERSION)..."
+            echo "📦 Checking $CRATE_NAME (v$VERSION)..."
 
-            # 检查 crates.io API (返回 200 表示存在，404 表示不存在)
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION)
+            # 检查 crates.io API
+            local HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
 
             if [ "$HTTP_CODE" = "200" ]; then
               echo "✅ Version $VERSION already exists on crates.io. Skipping."
             else
               echo "🚀 Version $VERSION not found. Publishing..."
-              cargo publish -p $CRATE_NAME
 
-              # 发布后休眠一会，等待索引更新，防止依赖它的包找不到版本
-              echo "⏳ Waiting for index propagation..."
+              # 执行发布，如果失败则退出脚本 (set -e 的效果，或者手动检查)
+              cargo publish -p "$CRATE_NAME"
+
+              echo "⏳ Waiting for index propagation (20s)..."
               sleep 20
             fi
-          }' >> $GITHUB_ENV
+          }
 
-      # 下面按照依赖顺序，依次调用上面的逻辑
+          # --- 依赖顺序执行 (Topology Order) ---
 
-      # 1. 最底层库 (无依赖)
-      - name: Process vacro-doc-i18n
-        run: |
-          source $GITHUB_ENV
+          # 1. 基础依赖层
           publish_crate "crates/vacro-doc-i18n" "vacro-doc-i18n"
-
-      - name: Process vacro-report
-        run: |
-          source $GITHUB_ENV
-          publish_crate "crates/vacro-report" "vacro-report"
-
-      # 2. 核心库
-      - name: Process vacro-parser
-        run: |
-          source $GITHUB_ENV
           publish_crate "crates/vacro-parser" "vacro-parser"
 
-      # 3. 门面库 (依赖以上所有)
-      - name: Process vacro
-        run: |
-          source $GITHUB_ENV
+          # 2. 宏实现层 (Macro Impls)
+          publish_crate "crates/vacro-report-macro" "vacro-report-macro"
+          publish_crate "crates/vacro-trace-macro" "vacro-trace-macro"
+
+          # 3. 功能封装层 (Feature Wrappers)
+          publish_crate "crates/vacro-report" "vacro-report"
+          publish_crate "crates/vacro-trace" "vacro-trace"
+
+          # 4. 业务逻辑层 (Analysis)
+          publish_crate "crates/vacro-analysis" "vacro-analysis"
+
+          # 5. 应用层 (CLI & Root)
+          publish_crate "crates/vacro-cli" "vacro-cli"
           publish_crate "." "vacro"
+
+          echo "All crates checked and published!"
