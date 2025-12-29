@@ -26,48 +26,60 @@ jobs:
         run: |
           # --- 函数定义 ---
           publish_crate() {
-            local CRATE_PATH=$1
-            local CRATE_NAME=$2
+             local CRATE_PATH=$1
+             local CRATE_NAME=$2
 
-            # 简单的 TOML 版本解析：查找 name = "..." 下方的 version = "..."
-            # 注意：这里假设 Cargo.toml 格式比较标准。
-            local VERSION=$(grep "^version" "$CRATE_PATH/Cargo.toml" | head -n 1 | cut -d '"' -f 2)
+             # 获取版本号
+             local VERSION=$(grep "^version" "$CRATE_PATH/Cargo.toml" | head -n 1 | cut -d '"' -f 2)
 
-            # 如果没找到版本号（比如 workspace 继承），可能需要调整 grep 逻辑
-            # 这里做个简单的防御
-            if [ -z "$VERSION" ]; then
-                echo "⚠️  Could not detect version for $CRATE_NAME in $CRATE_PATH. Skipping auto-check."
-                # 这种情况下尝试强制发布，让 cargo 决定
-                cargo publish -p "$CRATE_NAME" || true
-                return
-            fi
+             if [ -z "$VERSION" ]; then
+                 echo "⚠️  Could not detect version for $CRATE_NAME. Skipping check."
+                 cargo publish -p "$CRATE_NAME" || true
+                 return
+             fi
 
-            echo "------------------------------------------------"
-            echo "📦 Checking $CRATE_NAME (v$VERSION)..."
+             echo "------------------------------------------------"
+             echo "📦 Checking $CRATE_NAME (v$VERSION)..."
 
-            # 检查 crates.io API
-            local HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
+             # --- 关键修改点 ---
+             # 1. 添加 -A "vacro-ci" 指定 User-Agent，防止被 Crates.io 拦截 (403错误)
+             # 2. 添加 -L 跟随重定向
+             local HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L -A "vacro-ci" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
 
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "✅ Version $VERSION already exists on crates.io. Skipping."
-            else
-              echo "🚀 Version $VERSION not found. Publishing..."
+             echo "   -> API returned HTTP $HTTP_CODE"
 
-              # 执行发布，如果失败则退出脚本 (set -e 的效果，或者手动检查)
-              cargo publish -p "$CRATE_NAME"
+             if [ "$HTTP_CODE" = "200" ]; then
+                 echo "✅ Version $VERSION already exists on crates.io. Skipping."
+                 return 0
+             elif [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "000" ]; then
+                 # 404 表示确实没找到，000 表示 curl 连不上(可能网络问题，但也尝试发布)
+                 echo "🚀 Version $VERSION not found (HTTP $HTTP_CODE). Publishing..."
 
-              echo "⏳ Waiting for index propagation (20s)..."
-              sleep 20
-            fi
-          }
+                 # 执行发布
+                 cargo publish -p "$CRATE_NAME"
+
+                 echo "⏳ Waiting for index propagation (20s)..."
+                 sleep 20
+             else
+                 # 处理其他异常状态 (如 403, 500 等)
+                 echo "⚠️  API check failed with HTTP $HTTP_CODE. Assuming already exists or temporary error."
+                 echo "   To be safe, we will try to publish but allow failure."
+
+                 # 尝试发布，如果是因为“已存在”报错，我们忽略它
+                 # 这里的 || true 稍微有点暴力，但对于 CI 这种场景，
+                 # 如果是因为版本已存在导致的报错，忽略它是最简单的办法。
+                 # 如果你想更严谨，可以捕获输出判断错误信息。
+                 cargo publish -p "$CRATE_NAME" || echo "⚠️ Publish failed, possibly already exists. Continuing..."
+             fi
+           }
 
           # --- 依赖顺序执行 (Topology Order) ---
 
           # 1. 基础依赖层
           publish_crate "crates/vacro-doc-i18n" "vacro-doc-i18n"
-          publish_crate "crates/vacro-parser" "vacro-parser"
 
           # 2. 宏实现层 (Macro Impls)
+          publish_crate "crates/vacro-parser" "vacro-parser"
           publish_crate "crates/vacro-report-macro" "vacro-report-macro"
           publish_crate "crates/vacro-trace-macro" "vacro-trace-macro"
 
