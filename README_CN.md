@@ -141,7 +141,7 @@ fn test_function() {
 ```
 
 <div align="center">
-<img src="https://github.com/user-attachments/assets/7ae8261e-3959-42a4-92a6-fd212db86f0d" width="600" alt="Vacro CLI Demo">
+<img src="https://github.com/user-attachments/assets/7ae8261e-3959-42a4-92a6-fd212db86f0d" width="100%" alt="Vacro CLI 演示">
 </div>
 
 更多内容参见：[vacro-cli](https://crates.io/crates/vacro-cli)
