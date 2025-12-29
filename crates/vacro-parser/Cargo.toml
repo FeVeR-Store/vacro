@@ -1,9 +1,9 @@
 [package]
 name = "vacro-parser"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
-documentation = "https://docs.rs/vacro"
+documentation = "https://docs.rs/vacro-parser"
 readme = "readme.md"
 repository = "https://github.com/FeVeR-Store/vacro"
 license = "MIT OR Apache-2.0"
@@ -11,8 +11,8 @@ keywords = ["macros", "parsing", "proc-macro", "syn"]
 categories = ["development-tools::procedural-macro-helpers", "parsing"]
 
 [package.metadata.docs.rs]
-features = ["extra-traits", "doc-all"]
-rustdoc-args = ["--html-in-header", "docs/doc-i18n.html"]
+features = ["doc-all"]
+rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 
 [lib]
 proc-macro = true

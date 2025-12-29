@@ -26,52 +26,71 @@ jobs:
         run: |
           # --- 函数定义 ---
           publish_crate() {
-             local CRATE_PATH=$1
-             local CRATE_NAME=$2
+              local CRATE_PATH=$1
+              local CRATE_NAME=$2
+              local MAX_RETRIES=3  # 最大重试次数
+              local RETRY_DELAY=60 # 每次重试等待秒数 (遇到429通常需要等久一点)
 
-             # 获取版本号
-             local VERSION=$(grep "^version" "$CRATE_PATH/Cargo.toml" | head -n 1 | cut -d '"' -f 2)
+              # 1. 获取版本号
+              local VERSION=$(grep "^version" "$CRATE_PATH/Cargo.toml" | head -n 1 | cut -d '"' -f 2)
 
-             if [ -z "$VERSION" ]; then
-                 echo "⚠️  Could not detect version for $CRATE_NAME. Skipping check."
-                 cargo publish -p "$CRATE_NAME" || true
-                 return
-             fi
+              if [ -z "$VERSION" ]; then
+                  echo "⚠️  Version not detected for $CRATE_NAME. Skipping check."
+                  return
+              fi
 
-             echo "------------------------------------------------"
-             echo "📦 Checking $CRATE_NAME (v$VERSION)..."
+              echo "------------------------------------------------"
+              echo "🔍 Checking $CRATE_NAME (v$VERSION) on crates.io..."
 
-             # --- 关键修改点 ---
-             # 1. 添加 -A "vacro-ci" 指定 User-Agent，防止被 Crates.io 拦截 (403错误)
-             # 2. 添加 -L 跟随重定向
-             local HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L -A "vacro-ci" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
+              # 2. API 检查 (带 User-Agent)
+              local HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -L -A "vacro-ci-bot" "https://crates.io/api/v1/crates/$CRATE_NAME/$VERSION")
 
-             echo "   -> API returned HTTP $HTTP_CODE"
+              if [ "$HTTP_CODE" = "200" ]; then
+                  echo "✅ Version $VERSION already exists. Skipping."
+                  return 0
+              fi
 
-             if [ "$HTTP_CODE" = "200" ]; then
-                 echo "✅ Version $VERSION already exists on crates.io. Skipping."
-                 return 0
-             elif [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "000" ]; then
-                 # 404 表示确实没找到，000 表示 curl 连不上(可能网络问题，但也尝试发布)
-                 echo "🚀 Version $VERSION not found (HTTP $HTTP_CODE). Publishing..."
+              echo "📄 Preparing documentation for $CRATE_NAME..."
+              # 将根目录的 HTML 复制到当前 crate 目录下
+              # 注意：假设脚本是在项目根目录运行，$CRATE_PATH 是相对路径
+              cp "docs/doc-i18n.html" "$CRATE_PATH/doc-i18n.html"
 
-                 # 执行发布
-                 cargo publish -p "$CRATE_NAME"
+              # 3. 准备发布 (处理 404 或其他情况)
+              echo "🚀 Version $VERSION needs to be published (HTTP $HTTP_CODE)."
 
-                 echo "⏳ Waiting for index propagation (20s)..."
-                 sleep 20
-             else
-                 # 处理其他异常状态 (如 403, 500 等)
-                 echo "⚠️  API check failed with HTTP $HTTP_CODE. Assuming already exists or temporary error."
-                 echo "   To be safe, we will try to publish but allow failure."
+              # --- 重试逻辑 ---
+              for (( i=1; i<=MAX_RETRIES; i++ )); do
+                  echo "   [Attempt $i/$MAX_RETRIES] Publishing $CRATE_NAME..."
 
-                 # 尝试发布，如果是因为“已存在”报错，我们忽略它
-                 # 这里的 || true 稍微有点暴力，但对于 CI 这种场景，
-                 # 如果是因为版本已存在导致的报错，忽略它是最简单的办法。
-                 # 如果你想更严谨，可以捕获输出判断错误信息。
-                 cargo publish -p "$CRATE_NAME" || echo "⚠️ Publish failed, possibly already exists. Continuing..."
-             fi
-           }
+                  # 尝试发布
+                  # set +e 临时允许失败，这样我们可以捕获错误而不是让脚本直接退出
+                  set +e
+                  cargo publish -p "$CRATE_NAME" --allow-dirty
+                  local EXIT_CODE=$?
+                  set -e # 恢复遇到错误即退出
+
+                  if [ $EXIT_CODE -eq 0 ]; then
+                      echo "✅ Successfully published $CRATE_NAME v$VERSION"
+                      echo "⏳ Waiting 20s for index propagation..."
+                      sleep 20
+                      return 0
+                  else
+                      echo "⚠️  Publish failed with exit code $EXIT_CODE."
+                      if [ $i -lt $MAX_RETRIES ]; then
+                          echo "⏳ Likely rate limited (429). Sleeping for ${RETRY_DELAY}s before retrying..."
+                          sleep $RETRY_DELAY
+                          # 每次重试增加延迟时间 (简单的退避策略)
+                          RETRY_DELAY=$((RETRY_DELAY + 60))
+                      else
+                          echo "❌ Exhausted all retries. Failing."
+                          return 1
+                      fi
+                  fi
+              done
+
+              # 清理
+              rm "$CRATE_PATH/doc-i18n.html"
+          }
 
           # --- 依赖顺序执行 (Topology Order) ---
 

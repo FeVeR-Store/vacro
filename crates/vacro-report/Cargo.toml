@@ -1,8 +1,9 @@
 [package]
 name = "vacro-report"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Diagnostic reporting enhancements for Rust procedural macros, improving error messages."
+documentation = "https://docs.rs/vacro-report"
 readme = "README.md"
 repository = "https://github.com/FeVeR-Store/vacro"
 license = "MIT OR Apache-2.0"
@@ -11,6 +12,10 @@ categories = [
   "development-tools::debugging",
   "development-tools::procedural-macro-helpers"
 ]
+
+[package.metadata.docs.rs]
+features = ["doc-all"]
+rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 
 [dependencies]
 proc-macro2 = "1.0"

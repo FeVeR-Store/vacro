@@ -12,7 +12,7 @@ categories = ["development-tools::procedural-macro-helpers"]
 
 [package.metadata.docs.rs]
 features = ["extra-traits", "doc-all", "full"]
-rustdoc-args = ["--html-in-header", "docs/doc-i18n.html"]
+rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 
 [workspace]
 members = [
