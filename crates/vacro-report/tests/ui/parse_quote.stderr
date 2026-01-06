@@ -1,0 +1,12 @@
+error: proc macro panicked
+ --> tests/ui/parse_quote.rs:3:5
+  |
+3 |     macros::parse_stmt!(let a = 10);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: `parse_quote` failed at $DIR/tests/macros/src/lib.rs:10:24
+          Tokens:
+          ```
+          let a = 10
+          ```
+          Error message: "expected `;`"

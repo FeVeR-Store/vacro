@@ -4,6 +4,7 @@ use vacro_doc_i18n::doc_i18n;
 use crate::impls::{parse_quote_impl, report_scope_impl};
 
 mod impls;
+mod utils;
 
 #[proc_macro_attribute]
 #[doc_i18n]
@@ -39,5 +40,22 @@ pub fn scope(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// standard `syn::parse_quote!` calls.
 /// </div>
 pub fn parse_quote(input: TokenStream) -> TokenStream {
-    parse_quote_impl(input.into()).into()
+    parse_quote_impl(input.into(), false).into()
+}
+
+#[proc_macro]
+#[doc_i18n]
+/// <div class="doc-cn">
+/// 增强版 `parse_quote_spanned!`（内部使用）。
+///
+/// 该宏通常不直接由用户调用，而是通过 `#[scope]` 宏重写标准的 `syn::parse_quote_spanned!` 调用来自动使用。
+/// </div>
+/// <div class="doc-en">
+/// Enhanced `parse_quote_spanned!` (Internal Use).
+///
+/// This macro is usually not called directly. It is automatically used when `#[scope]` rewrites
+/// standard `syn::parse_quote_spanned!` calls.
+/// </div>
+pub fn parse_quote_spanned(input: TokenStream) -> TokenStream {
+    parse_quote_impl(input.into(), true).into()
 }
