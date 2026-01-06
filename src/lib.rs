@@ -12,6 +12,7 @@
 use vacro_doc_i18n::doc_i18n;
 
 #[cfg(feature = "parser")]
+#[doc_i18n]
 pub mod parser {
     //! <div class="doc-en"> Declarative parsing tools. </div>
     //! <div class="doc-cn"> 声明式解析工具。 </div>
@@ -19,6 +20,7 @@ pub mod parser {
 }
 
 #[cfg(feature = "report")]
+#[doc_i18n]
 pub mod report {
     //! <div class="doc-en"> Diagnostic reporting tools. </div>
     //! <div class="doc-cn"> 诊断报告工具。 </div>
@@ -28,6 +30,7 @@ pub mod report {
 }
 
 #[cfg(feature = "trace")]
+#[doc_i18n]
 pub mod trace {
     //! <div class="doc-en"> Observability and tracing tools. </div>
     //! <div class="doc-cn"> 可观测性追踪工具 </div>
