@@ -1,6 +1,6 @@
 [package]
 name = "vacro-trace"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Observability, tracing, and snapshot debugging for Rust procedural macros."
 documentation = "https://docs.rs/vacro-trace"
@@ -24,11 +24,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = "2.0.17"
 uuid = { version = "1.19.0", features = ["v4"] }
-vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
-vacro-trace-macro = { path = "../vacro-trace-macro", version = "0.1.0", optional = true }
+vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.1" }
+vacro-trace-macro = { path = "../vacro-trace-macro", version = "0.1.2", optional = true }
 
 [features]
-default = ["macros"]
+default = ["standalone"]
 doc-all = ["vacro-trace-macro/doc-all"]
 doc-cn = ["vacro-trace-macro/doc-cn"]
 doc-en = ["vacro-trace-macro/doc-en"]

@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 quote = { workspace = true }
-vacro-trace = { path = "../..", version = "0.1.0", features = ["standalone"] }
+vacro-trace = { path = "../..", version = "0.1.2", features = ["standalone"] }

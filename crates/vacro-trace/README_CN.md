@@ -15,7 +15,7 @@
 
 ```toml
 [dependencies]
-vacro-trace = "0.1.0"
+vacro-trace = "0.1.2"
 ```
 
 ## 使用方法

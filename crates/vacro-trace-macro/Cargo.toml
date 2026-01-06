@@ -1,6 +1,6 @@
 [package]
 name = "vacro-trace-macro"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 description = "Internal macro implementation for vacro-trace."
 repository = "https://github.com/FeVeR-Store/vacro"

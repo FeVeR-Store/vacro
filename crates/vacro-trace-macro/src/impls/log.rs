@@ -38,7 +38,7 @@ fn gen_log_code(level_expr: TokenStream, args: TokenStream) -> TokenStream {
     };
 
     parse_quote! {
-        if ::std::env::var("VACRO_TRACE").is_ok() {
+        if cfg!(debug_assertions) || ::std::env::var("VACRO_TRACE").is_ok() {
             #pkg::__private::log(#level_expr.to_string(), #msg_expr);
         }
     }
