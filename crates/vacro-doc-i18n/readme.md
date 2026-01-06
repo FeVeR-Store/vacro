@@ -96,6 +96,22 @@ pub struct Capture;
 pub struct Capture;
 ```
 
+### inner doc 支持（v0.1.1)
+
+inner doc将被解析到外层模块（此处的parser）
+
+```rust
+#[cfg(feature = "parser")]
+pub mod parser {
+    #[doc_i18n]
+    //! <div class="doc-en"> Declarative parsing tools. </div>
+    //! <div class="doc-cn"> 声明式解析工具。 </div>
+    pub use vacro_parser::*;
+}
+
+```
+
+
 规则：
 
 - **开标签与闭标签必须在同一行**
