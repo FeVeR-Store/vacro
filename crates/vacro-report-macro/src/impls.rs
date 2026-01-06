@@ -19,7 +19,6 @@ pub fn report_scope_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut rewriter = TraceRewriter::new();
     rewriter.visit_item_fn_mut(&mut enhanced_fn);
 
-    snapshot!("fn", enhanced_fn);
     let mut stmts: Vec<Stmt> = vec![];
 
     if rewriter.unused_parse_quote {
@@ -36,7 +35,6 @@ pub fn report_scope_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if !stmts.is_empty() {
         let mut block: Block = parse_quote!({});
         block.stmts.append(&mut stmts);
-        snapshot!("block", block);
         enhanced_fn.block.stmts.insert(
             0,
             parse_quote! {
@@ -44,7 +42,6 @@ pub fn report_scope_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
             },
         );
     }
-    snapshot!("fn", enhanced_fn);
 
     quote! {
         #[cfg(debug_assertions)]
