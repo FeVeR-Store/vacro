@@ -1,24 +1,36 @@
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::quote;
-use syn::{parse_macro_input, Attribute, Item};
+use syn::{parse_macro_input, AttrStyle, Attribute, Item, Token}; // 引入 AttrStyle
 
 #[proc_macro_attribute]
 pub fn doc_i18n(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut item_ast = parse_macro_input!(item as Item);
 
-    // 1) 取出所有 doc attrs → 合并成 String
+    // 1) 取出所有 attributes
     let mut attrs = take_attrs_mut(&mut item_ast);
-    let doc_text = extract_doc_text(&attrs);
 
-    // 2) 语言模式（MVP：feature-only）
+    // [Change]: 分别提取 Outer (///) 和 Inner (//!) 文档
+    let (outer_text, inner_text) = extract_doc_text_split(&attrs);
+
+    // 2) 语言模式
     let mode = lang_mode_from_features();
 
-    // 3) 过滤/剥离
-    let filtered = filter_doc_i18n(&doc_text, mode);
+    // 3) 分别过滤
+    let filtered_outer = filter_doc_i18n(&outer_text, mode);
+    let filtered_inner = filter_doc_i18n(&inner_text, mode);
 
-    // 4) 删除旧 doc attrs + 写入新 doc attrs
+    // 4) 删除旧 doc attrs
     remove_doc_attrs(&mut attrs);
-    push_doc_attrs(&mut attrs, &filtered);
+
+    // [Change]: 分别写回。注意 Inner 必须插在 Outer 之后，或者顺序其实不严格，
+    // 但为了保持原有语义，我们按照样式分别构造。
+    push_doc_attrs(&mut attrs, &filtered_outer, AttrStyle::Outer);
+    push_doc_attrs(
+        &mut attrs,
+        &filtered_inner,
+        AttrStyle::Inner(Token![!](Span::call_site())),
+    );
 
     // 5) 放回 attrs
     put_attrs_back(&mut item_ast, attrs);
@@ -34,8 +46,6 @@ enum LangMode {
 }
 
 fn lang_mode_from_features() -> LangMode {
-    // 注意：cfg!(feature=...) 在 proc-macro crate 里取的是“proc-macro crate 自己的 feature”
-    // 用户在依赖时启用 features，会传递到该 proc-macro crate，因此可用。
     if cfg!(feature = "doc-all") {
         LangMode::All
     } else if cfg!(feature = "doc-cn") {
@@ -48,6 +58,7 @@ fn lang_mode_from_features() -> LangMode {
 // ---------------- attrs plumbing ----------------
 
 fn take_attrs_mut(item: &mut Item) -> Vec<Attribute> {
+    // 这里无需修改，syn 会自动把 `mod { //! ... }` 里的 inner attr 解析到 Item::Mod 的 attrs 中
     match item {
         Item::Const(i) => std::mem::take(&mut i.attrs),
         Item::Enum(i) => std::mem::take(&mut i.attrs),
@@ -74,7 +85,7 @@ fn put_attrs_back(item: &mut Item, attrs: Vec<Attribute>) {
         Item::Enum(i) => i.attrs = attrs,
         Item::Fn(i) => i.attrs = attrs,
         Item::Impl(i) => i.attrs = attrs,
-        Item::Mod(i) => i.attrs = attrs,
+        Item::Mod(i) => i.attrs = attrs, // 放回时，syn 会自动根据 AttrStyle 决定是打印在外面还是里面
         Item::Struct(i) => i.attrs = attrs,
         Item::Trait(i) => i.attrs = attrs,
         Item::Type(i) => i.attrs = attrs,
@@ -83,41 +94,74 @@ fn put_attrs_back(item: &mut Item, attrs: Vec<Attribute>) {
     }
 }
 
-fn extract_doc_text(attrs: &[Attribute]) -> String {
-    // rustdoc 的 doc attrs 是多条 #[doc = "..."]，逐条追加即可
-    let mut out = String::new();
+/// [Change]: 返回 (OuterDoc, InnerDoc)
+fn extract_doc_text_split(attrs: &[Attribute]) -> (String, String) {
+    let mut outer = String::new();
+    let mut inner = String::new();
+
     for a in attrs {
         if !a.path().is_ident("doc") {
             continue;
         }
-        // #[doc = "..."]
+
+        // 解析文档内容
+        let mut content = String::new();
         if let Ok(s) = a.parse_args::<syn::LitStr>() {
-            out.push_str(&s.value());
-            out.push('\n');
+            content = s.value();
         } else if let syn::Meta::NameValue(nv) = &a.meta {
             if let syn::Expr::Lit(expr_lit) = &nv.value {
                 if let syn::Lit::Str(litstr) = &expr_lit.lit {
-                    out.push_str(&litstr.value());
-                    out.push('\n');
+                    content = litstr.value();
                 }
             }
         }
+
+        if content.is_empty() {
+            continue;
+        } // 忽略空行防止干扰
+
+        // 根据样式追加到不同的 buffer
+        match a.style {
+            AttrStyle::Outer => {
+                outer.push_str(&content);
+                outer.push('\n');
+            }
+            AttrStyle::Inner(_) => {
+                inner.push_str(&content);
+                inner.push('\n');
+            }
+        }
     }
-    out
+    (outer, inner)
 }
 
 fn remove_doc_attrs(attrs: &mut Vec<Attribute>) {
     attrs.retain(|a| !a.path().is_ident("doc"));
 }
 
-fn push_doc_attrs(attrs: &mut Vec<Attribute>, text: &str) {
-    // 每一行生成一条 #[doc="..."]，空行也保留（保证段落结构）
+/// [Change]: 增加 style 参数，决定生成 #[doc] 还是 #![doc]
+fn push_doc_attrs(attrs: &mut Vec<Attribute>, text: &str, style: AttrStyle) {
+    if text.is_empty() {
+        return;
+    }
+
     for line in text.split('\n') {
-        // 最后一行 split 会给出尾部空项，MVP：保留也无妨
+        // 如果是最后一行空字符串，可以跳过，防止多余空行
+        // if line.is_empty() { continue; }
+        // 但为了保留原格式的空行，我们还是生成空 doc
+
         let lit = syn::LitStr::new(line, proc_macro2::Span::call_site());
-        attrs.push(syn::parse_quote!(#[doc = #lit]));
+
+        let attr: Attribute = match style {
+            AttrStyle::Outer => syn::parse_quote!(#[doc = #lit]),
+            AttrStyle::Inner(_) => syn::parse_quote!(#![doc = #lit]),
+        };
+
+        attrs.push(attr);
     }
 }
+
+// ---------------- 下面的过滤逻辑保持不变 ----------------
 
 fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
     if matches!(mode, LangMode::All) {
@@ -130,13 +174,11 @@ fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
     for line in input.lines() {
         let trimmed = line.trim();
 
-        // 1. 优先处理块关闭
         if in_block.is_some() && is_block_close(trimmed) {
             in_block = None;
             continue;
         }
 
-        // 2. 如果当前已经在块内，直接根据语言过滤输出
         if let Some(block_lang) = in_block {
             if block_lang == mode {
                 out.push_str(line);
@@ -145,7 +187,6 @@ fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
             continue;
         }
 
-        // 3. 核心修复：检查是否是“单行块”（Inline）
         if trimmed.starts_with("<div") && trimmed.contains("</div>") {
             let replaced = replace_inline(line, mode);
             if !replaced.is_empty() {
@@ -155,18 +196,15 @@ fn filter_doc_i18n(input: &str, mode: LangMode) -> String {
             continue;
         }
 
-        // 4. 检查是否是“多行块”的开始
         if let Some(lang) = parse_block_open(trimmed) {
             in_block = Some(lang);
             continue;
         }
 
-        // 5. 普通文本行（或者含有多个复杂 inline 的行）
         let replaced = replace_inline(line, mode);
         out.push_str(&replaced);
         out.push('\n');
     }
-
     out
 }
 
@@ -174,19 +212,14 @@ fn is_block_close(line: &str) -> bool {
     line.trim() == "</div>"
 }
 
-/// 仅当整行（trim 后）是 `<div ...>` 才算 block open
 fn parse_block_open(line: &str) -> Option<LangMode> {
     let t = line.trim();
     if !(t.starts_with("<div") && t.ends_with('>')) {
         return None;
     }
-    // block 要求独占一行：除了 tag 之外不能有内容
-    // 由于 t 已经是整行 trim，这里等价于“整行就是 tag”
     parse_lang_from_div_open_tag(t)
 }
 
-/// inline：同一行内 `<div class="doc-xx"> ... </div>`
-/// 只保留当前 mode 的内容，其他语言块删除（替换为空）
 fn replace_inline(line: &str, mode: LangMode) -> String {
     let mut s = line.to_string();
     let mut cursor = 0usize;
@@ -195,22 +228,15 @@ fn replace_inline(line: &str, mode: LangMode) -> String {
         let Some(start) = find_substr(&s, "<div", cursor) else {
             break;
         };
-
-        // 找到 open tag 结束 '>'
         let Some(gt) = s[start..].find('>').map(|i| start + i) else {
             break;
         };
         let open_tag = &s[start..=gt];
-
-        // 从 open_tag 解析语言
         let Some(lang) = parse_lang_from_div_open_tag(open_tag) else {
             cursor = gt + 1;
             continue;
         };
-
-        // 找到同一行内 close
         let Some(end_rel) = s[gt + 1..].find("</div>").map(|i| gt + 1 + i) else {
-            // 没有同一行闭合：不按 inline 处理（MVP：宽松降级）
             cursor = gt + 1;
             continue;
         };
@@ -224,11 +250,8 @@ fn replace_inline(line: &str, mode: LangMode) -> String {
         };
 
         s.replace_range(start..close_end, &replacement);
-
-        // cursor 继续往 start+replacement 长度走，避免死循环
         cursor = start + replacement.len();
     }
-
     s.trim_end().to_string()
 }
 
@@ -237,9 +260,7 @@ fn find_substr(hay: &str, needle: &str, from: usize) -> Option<usize> {
 }
 
 fn parse_lang_from_div_open_tag(tag: &str) -> Option<LangMode> {
-    // 只解析 class="..." 或 class='...'
     let class_val = extract_attr_quoted(tag, "class")?;
-    // class 可能是 "x doc-cn y"
     for tok in class_val.split_whitespace() {
         if let Some(lang) = tok.strip_prefix("doc-") {
             return match lang {
@@ -253,7 +274,6 @@ fn parse_lang_from_div_open_tag(tag: &str) -> Option<LangMode> {
 }
 
 fn extract_attr_quoted(tag: &str, name: &str) -> Option<String> {
-    // 找 `name=`，然后读引号内容
     let idx = tag.find(name)?;
     let after = &tag[idx + name.len()..];
     let after = after.trim_start();
