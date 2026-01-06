@@ -22,6 +22,7 @@ members = [
   "crates/vacro-parser",
   "crates/vacro-report",
   "crates/vacro-report-macro",
+  "crates/vacro-report/tests/macros",
   "crates/vacro-trace",
   "crates/vacro-trace/tests/fixture",
 ]

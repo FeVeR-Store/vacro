@@ -1,5 +1,6 @@
 use rust_format::{Formatter, PrettyPlease};
 
+pub use quote::quote;
 pub use vacro_report_macro::parse_quote;
 
 #[track_caller]
@@ -12,29 +13,33 @@ pub fn parse_quote_traced<T: syn::parse::Parse>(tokens: proc_macro2::TokenStream
         Ok(Err(e)) => {
             let loc = std::panic::Location::caller();
             panic!(
-                r#"`parse_quote` failed at {}:{}:{}
-                Error message: "{}"
-                Tokens:
-                {}"#,
+                "`parse_quote` failed at {}:{}:{}\n\
+                Tokens:\n\
+                ```\n\
+                {}\n\
+                ```\n\
+                Error message: \"{}\"",
                 loc.file(),
                 loc.line(),
                 loc.column(),
+                actual,
                 e,
-                actual
             );
         }
         Err(panic) => {
             let loc = std::panic::Location::caller();
             panic!(
-                r#"`parse_quote` panicked at {}:{}:{}
-                Error message: "{:?}"
-                Tokens:
-                {}"#,
+                "`parse_quote` panicked at {}:{}:{}\n\
+                Tokens:\n\
+                ```\n\
+                {}\n\
+                ```\n\
+                Error message: \"{:?}\"",
                 loc.file(),
                 loc.line(),
                 loc.column(),
+                actual,
                 panic,
-                actual
             );
         }
     }
