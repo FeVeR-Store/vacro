@@ -23,7 +23,7 @@ quote = { workspace = true }
 rust-format = { workspace = true }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
-vacro-report-macro = { path = "../vacro-report-macro" }
+vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.2" }
 
 [dev-dependencies]
 macros = { path = "./tests/macros" }

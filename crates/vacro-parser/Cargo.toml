@@ -21,7 +21,7 @@ proc-macro = true
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
-vacro-doc-i18n = "0.1.0"
+vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.1" }
 
 [dev-dependencies]
 syn = { workspace = true, features = ["extra-traits", "full"] }
