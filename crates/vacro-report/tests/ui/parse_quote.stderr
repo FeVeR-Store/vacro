@@ -4,7 +4,7 @@ error: proc macro panicked
 3 |     macros::parse_stmt!(let a = 10);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: message: `parse_quote` failed at $DIR/tests/macros/src/lib.rs:9:24
+  = help: message: `parse_quote` failed at $DIR/tests/macros/src/lib.rs:10:24
           Tokens:
           ```
           let a = 10
