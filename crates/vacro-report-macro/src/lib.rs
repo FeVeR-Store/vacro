@@ -4,6 +4,7 @@ use vacro_doc_i18n::doc_i18n;
 use crate::impls::{parse_quote_impl, report_scope_impl};
 
 mod impls;
+mod utils;
 
 #[proc_macro_attribute]
 #[doc_i18n]
