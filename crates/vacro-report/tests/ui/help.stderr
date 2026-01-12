@@ -1,0 +1,7 @@
+error: 这里需要一个String字面量
+       help: 应该在两侧添加双引号
+
+ --> tests/ui/help.rs:2:25
+  |
+2 |     macros::parse_help!(my_string);
+  |                         ^^^^^^^^^
