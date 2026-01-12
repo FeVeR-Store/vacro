@@ -16,7 +16,10 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true, features = ["full", "visit-mut"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
-vacro-trace = { path = "../vacro-trace", features = ["standalone"] }
+vacro-trace = { version = "0.1.2", features = ["standalone"] }
 
 [features]
+default = ["quote"]
+parser = []
+quote = []
 standalone = []

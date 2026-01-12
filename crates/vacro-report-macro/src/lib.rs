@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
 use vacro_doc_i18n::doc_i18n;
+use vacro_trace::instrument;
 
-use crate::impls::{parse_quote_impl, report_scope_impl};
+use crate::impls::{help_impl, parse_quote_impl, report_scope_impl};
 
 mod impls;
 mod utils;
@@ -58,4 +59,10 @@ pub fn parse_quote(input: TokenStream) -> TokenStream {
 /// </div>
 pub fn parse_quote_spanned(input: TokenStream) -> TokenStream {
     parse_quote_impl(input.into(), true).into()
+}
+
+#[proc_macro]
+#[instrument]
+pub fn help(input: TokenStream) -> TokenStream {
+    help_impl(input.into()).into()
 }

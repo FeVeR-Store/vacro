@@ -69,6 +69,6 @@ doc-en = [
 ]
 extra-traits = ["vacro-parser/extra-traits"]
 full = ["parser", "report", "trace"]
-parser = ["dep:vacro-parser"]
+parser = ["dep:vacro-parser", "vacro-report?/parser"]
 report = ["dep:vacro-report"]
 trace = ["dep:vacro-trace"]
