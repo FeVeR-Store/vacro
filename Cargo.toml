@@ -20,6 +20,7 @@ members = [
   "crates/vacro-cli",
   "crates/vacro-doc-i18n",
   "crates/vacro-parser",
+  "crates/vacro-parser-macro",
   "crates/vacro-report",
   "crates/vacro-report-macro",
   "crates/vacro-report/tests/macros",
@@ -38,7 +39,7 @@ trybuild = "1.0"
 
 [dependencies]
 vacro-doc-i18n = { path = "./crates/vacro-doc-i18n", version = "0.1.1" }
-vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", optional = true }
+vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", default-features = false, optional = true }
 vacro-report = { path = "./crates/vacro-report", version = "0.1.2", default-features = false, optional = true }
 vacro-trace = { path = "./crates/vacro-trace", version = "0.1.2", optional = true }
 
