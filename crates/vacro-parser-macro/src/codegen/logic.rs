@@ -6,11 +6,15 @@ mod keyword;
 mod pattern;
 
 pub struct Compiler {
-    pub definition: Vec<Item>,
+    pub shared_definition: Vec<Item>,
+    pub scoped_definition: Vec<Item>,
 }
 
 impl Compiler {
     pub fn new() -> Self {
-        Self { definition: vec![] }
+        Self {
+            shared_definition: vec![],
+            scoped_definition: vec![],
+        }
     }
 }

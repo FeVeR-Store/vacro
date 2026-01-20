@@ -14,6 +14,9 @@
 
 use vacro_doc_i18n::doc_i18n;
 
+#[doc(hidden)]
+pub mod __private;
+
 #[doc_i18n]
 /// <div class="doc-cn"> 即时解析宏：在现有的解析逻辑中快速消费 `TokenStream` </div>
 /// <div class="doc-en"> On-the-fly parsing macro: Quickly consume a `TokenStream` within existing parsing logic </div>

@@ -7,6 +7,7 @@ pub(crate) mod codegen;
 mod impls;
 pub(crate) mod syntax;
 pub(crate) mod transform;
+mod utils;
 
 #[proc_macro]
 pub fn bind(input: TokenStream) -> TokenStream {
