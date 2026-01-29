@@ -66,27 +66,24 @@ impl Compiler {
                 let cap_tokens = self.compile_capture(capture);
                 match &capture.edge {
                     Some(keyword) => {
-                        // 3. 你的 Lookahead 逻辑，现在追加到 body_stream
+                        // 3. Lookahead 逻辑，现在追加到 body_stream
                         body_stream.extend(quote! {
                                     {
                                         let mut _input = ::proc_macro2::TokenStream::new();
-
                                         while !input.peek(#keyword) {
                                             _input.extend(::std::iter::once(
                                                 input.parse::<::proc_macro2::TokenTree>()?
                                             ));
                                         }
 
-                                        {
-                                            #struct_def
-                                            let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
-                                                #capture_init
-                                                #cap_tokens
-                                                ::std::result::Result::Ok(#struct_expr)
-                                            };
-                                            // 这里解析刚才吃进去的流
-                                            #struct_expr = ::syn::parse::Parser::parse2(parser, _input)?;
-                                        }
+                                        #struct_def
+                                        let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
+                                            #capture_init
+                                            #cap_tokens
+                                            ::std::result::Result::Ok(#struct_expr)
+                                        };
+                                        // 这里解析刚才吃进去的流
+                                        #struct_expr = ::syn::parse::Parser::parse2(parser, _input)?;
                                     }
                                 });
                     }

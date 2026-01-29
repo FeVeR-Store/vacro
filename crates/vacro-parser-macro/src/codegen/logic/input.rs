@@ -22,12 +22,16 @@ impl Compiler {
         let patterns_tokens = self.compile_pattern(patterns);
         let captures = patterns.collect_captures();
 
-        let definitions = &self.definition;
+        let Compiler {
+            shared_definition,
+            scoped_definition,
+        } = &self;
 
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
         tokens.extend(quote! {
-            #(#definitions)*
+            #(#shared_definition)*
             #let_token #pat = {
+                #(#scoped_definition)*
                 use ::syn::parse::Parse;
                 trait _Parse: Parse {}
                 #struct_def
@@ -48,16 +52,20 @@ impl Compiler {
 
         let captures = patterns.collect_captures();
 
-        let definitions = &self.definition;
+        let Compiler {
+            shared_definition,
+            scoped_definition,
+        } = &self;
 
         let (capture_init, struct_def, struct_expr, _) =
             generate_output(&captures, Some(name.clone()));
 
         tokens.extend(quote! {
-            #(#definitions)*
+            #(#shared_definition)*
             #struct_def
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                    #(#scoped_definition)*
                     trait _Parse: ::syn::parse::Parse {}
                     #capture_init
                     #patterns_tokens
