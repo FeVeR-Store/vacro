@@ -26,13 +26,13 @@
 
 ```toml
 [dependencies]
-vacro-doc-i18n = "0.1"
+vacro-doc-i18n = "0.2"
 ```
 
 选择文档语言（示例）：
 
 ```toml
-vacro-doc-i18n = { version = "0.1", features = ["doc-cn"] }
+vacro-doc-i18n = { version = "0.2", features = ["doc-cn"] }
 ```
 
 ---
@@ -65,25 +65,25 @@ pub struct Capture;
 
 ## 文档写法
 
-### 多行 Block 模式（推荐）
+### 多行 Block 模式
 
 ```rust
 #[doc_i18n]
-/// <div class="doc-cn">
+/// ::: @cn
 /// 即时解析宏：在现有解析逻辑中快速消费 `TokenStream`
-/// </div>
-/// <div class="doc-en">
+/// :::
+///
+/// ::: @en
 /// On-the-fly parsing macro: quickly consume a `TokenStream`
-/// </div>
+/// :::
 pub struct Capture;
 ```
 
 规则：
 
-- `<div class="doc-xx">` **必须独占一行**
-- `</div>` **必须独占一行**
+- `::: @cn/@en` **必须独占一行**
+- `:::` **必须独占一行**
 - 中间内容可跨多行
-- 只识别 `class` 中包含 `doc-<lang>` 的 `div`
 
 ---
 
@@ -91,8 +91,8 @@ pub struct Capture;
 
 ```rust
 #[doc_i18n]
-/// <div class="doc-cn"> 即时解析宏：快速消费 TokenStream </div>
-/// <div class="doc-en"> On-the-fly parsing macro </div>
+/// @cn 即时解析宏：快速消费 TokenStream
+/// @en On-the-fly parsing macro
 pub struct Capture;
 ```
 
@@ -104,13 +104,12 @@ inner doc将被解析到外层模块（此处的parser）
 #[cfg(feature = "parser")]
 pub mod parser {
     #[doc_i18n]
-    //! <div class="doc-en"> Declarative parsing tools. </div>
-    //! <div class="doc-cn"> 声明式解析工具。 </div>
+    //! @en Declarative parsing tools.
+    //! @cn 声明式解析工具。
     pub use vacro_parser::*;
 }
 
 ```
-
 
 规则：
 
@@ -147,7 +146,7 @@ doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-all = ["vacro-doc-i18n/doc-all"]
 
 [dependencies]
-vacro-doc-i18n = { version = "0.1" }
+vacro-doc-i18n = { version = "0.2.0" }
 
 [package.metadata.docs.rs]
 features = ["doc-all"]
@@ -157,9 +156,7 @@ features = ["doc-all"]
 
 ## 限制
 
-- 仅识别 `<div class="doc-xx"> ... </div>` 结构
-- 不支持嵌套的 i18n block
-- 未启用严格校验（未闭合标签默认宽松处理）
+- 不支持对crate级别注释的处理
 - 语言码目前内置支持：
   - `doc-en`
   - `doc-cn`
@@ -168,20 +165,18 @@ features = ["doc-all"]
 
 ## 设计原则
 
-- 不引入新的 DSL，直接复用 HTML 作为“文档标记层”
 - 保持最小侵入性，输出仍是标准 Rustdoc
 
 ---
-
 
 ## License
 
 Licensed under either of
 
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 

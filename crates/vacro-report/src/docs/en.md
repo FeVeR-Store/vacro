@@ -31,11 +31,11 @@ fn generate_code() {
 - **Automatic Interception**: Rewrites `parse_quote!` and `parse_quote_spanned!` calls within the `#[scope]` function.
 - **Detailed Diagnostics**: When a parsing error occurs, it displays the generated code (formatted) and the error location.
 - **Zero Overhead (Success)**: Adds minimal overhead only when an error actually occurs (panic path).
-  <div class="warning">
 
-  We use `debug_assertions` to make this judgment, which means that if you have enabled certain optimizations, the effect may not trigger.
+<div class="warning">
+We use `debug_assertions` to make this judgment, which means that if you have enabled certain optimizations, the effect may not trigger.
+</div>
 
- </div>
 ## Future Plans
 
 - Support for more `syn` macros and custom parsing logic.

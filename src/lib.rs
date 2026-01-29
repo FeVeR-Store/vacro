@@ -14,16 +14,16 @@ use vacro_doc_i18n::doc_i18n;
 #[cfg(feature = "parser")]
 #[doc_i18n]
 pub mod parser {
-    //! <div class="doc-en"> Declarative parsing tools. </div>
-    //! <div class="doc-cn"> 声明式解析工具。 </div>
+    //! @en Declarative parsing tools.
+    //! @cn 声明式解析工具。
     pub use vacro_parser::*;
 }
 
 #[cfg(feature = "report")]
 #[doc_i18n]
 pub mod report {
-    //! <div class="doc-en"> Diagnostic reporting tools. </div>
-    //! <div class="doc-cn"> 诊断报告工具。 </div>
+    //! @en Diagnostic reporting tools.
+    //! @cn 诊断报告工具。
     #[doc(hidden)]
     pub use vacro_report::__private;
     pub use vacro_report::*;
@@ -32,30 +32,34 @@ pub mod report {
 #[cfg(feature = "trace")]
 #[doc_i18n]
 pub mod trace {
-    //! <div class="doc-en"> Observability and tracing tools. </div>
-    //! <div class="doc-cn"> 可观测性追踪工具 </div>
+    //! @en Observability and tracing tools.
+    //! @cn 可观测性追踪工具
     pub use vacro_trace::*;
 }
 
 #[doc_i18n]
-/// <div class="doc-cn"> Vacro 常用功能的预导入模块。</div>
-/// <div class="doc-en"> A prelude for convenient access to commonly used Vacro features. </div>
+/// @cn Vacro 常用功能的预导入模块。
+/// @en A prelude for convenient access to commonly used Vacro features.
 ///
-/// <div class="doc-cn">
+///
+/// ::: @cn
 ///
 /// 使用方式：
 /// ```rust
 /// use vacro::prelude::*;
 /// ```
-/// </div>
 ///
-/// <div class="doc-en">
+/// :::
+///
+/// ::: @en
 ///
 /// Usage:
 /// ```rust
 /// use vacro::prelude::*;
 /// ```
-/// </div>
+///
+/// :::
+///
 pub mod prelude {
     #[cfg(feature = "parser")]
     pub use crate::parser::{bind, define};

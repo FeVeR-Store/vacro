@@ -31,11 +31,10 @@ fn generate_code() {
 - **自动拦截**：自动重写 `#[scope]` 函数内部的 `parse_quote!` 与 `parse_quote_spanned!` 的调用。
 - **详细诊断**：发生解析错误时，展示格式化后的生成代码及错误位置。
 - **零开销（成功路径）**：仅在发生错误（Panic 路径）时才会有额外开销，在生产环境时，只有您写的源代码会被包含。
-  <div class="warning">
 
-  我们通过 `debug_assertions` 进行判断，意味着，如果您启用了某些优化，可能会导致效果无法触发
-
-  </div>
+<div class="warning">   
+我们通过 `debug_assertions` 进行判断，意味着，如果您启用了某些优化，可能会导致效果无法触发。
+</div>
 
 ## 未来计划
 

@@ -38,7 +38,7 @@ syn = { version = "2.0", features = ["full"] }
 trybuild = "1.0"
 
 [dependencies]
-vacro-doc-i18n = { path = "./crates/vacro-doc-i18n", version = "0.1.1" }
+vacro-doc-i18n = { path = "./crates/vacro-doc-i18n", version = "0.2.0" }
 vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", default-features = false, optional = true }
 vacro-report = { path = "./crates/vacro-report", version = "0.1.2", default-features = false, optional = true }
 vacro-trace = { path = "./crates/vacro-trace", version = "0.1.2", default-features = false, features = [
@@ -51,7 +51,6 @@ quote = { workspace = true }
 syn = { workspace = true }
 
 [features]
-default = []
 doc-all = [
   "vacro-doc-i18n/doc-all",
   "vacro-parser/doc-all",
