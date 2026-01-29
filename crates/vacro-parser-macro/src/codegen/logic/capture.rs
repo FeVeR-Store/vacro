@@ -144,7 +144,7 @@ impl Compiler {
     }
     fn generate_variant_struct(
         &self,
-        variants: &Vec<(EnumVariant, Matcher)>,
+        variants: &[(EnumVariant, Matcher)],
     ) -> Punctuated<TokenStream, Token![,]> {
         variants
             .iter()
@@ -180,7 +180,7 @@ impl Compiler {
             })
             .collect()
     }
-    fn define_enum(&mut self, enum_name: &Type, variants: &Vec<(EnumVariant, Matcher)>) {
+    fn define_enum(&mut self, enum_name: &Type, variants: &[(EnumVariant, Matcher)]) {
         let variants_struct = self.generate_variant_struct(variants);
         self.shared_definition.push(parse_quote! {
             pub enum #enum_name {
@@ -190,7 +190,7 @@ impl Compiler {
     }
     fn generate_parser(
         &mut self,
-        variants: &Vec<(EnumVariant, Matcher)>,
+        variants: &[(EnumVariant, Matcher)],
         enum_name: &Type,
     ) -> Vec<TokenStream> {
         variants.iter().map(|(v, ..)| match v {
@@ -233,7 +233,7 @@ impl Compiler {
             }
         }).collect()
     }
-    fn generate_error_token(&self, variants: &Vec<(EnumVariant, Matcher)>) -> TokenStream {
+    fn generate_error_token(&self, variants: &[(EnumVariant, Matcher)]) -> TokenStream {
         let pkg = crate_name();
         let mut fmt_str = vec![];
         let mut fmt_args = Punctuated::<Expr, Token![,]>::new();
@@ -259,7 +259,7 @@ impl Compiler {
             )
         }
     }
-    fn define_enum_parse_impl(&mut self, variants: &Vec<(EnumVariant, Matcher)>, enum_name: &Type) {
+    fn define_enum_parse_impl(&mut self, variants: &[(EnumVariant, Matcher)], enum_name: &Type) {
         let parser = self.generate_parser(variants, enum_name);
         let err_tokens = self.generate_error_token(variants);
         let pkg = crate_name();

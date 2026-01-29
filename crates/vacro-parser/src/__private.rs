@@ -21,6 +21,12 @@ impl<T> HelpQuery<T> {
     }
 }
 
+impl<T> Default for HelpQuery<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // help! 实现的接口
 pub trait CustomHelp {
     fn custom_message() -> String;
