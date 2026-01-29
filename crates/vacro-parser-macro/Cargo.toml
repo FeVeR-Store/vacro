@@ -12,6 +12,9 @@ quote = { workspace = true }
 syn = { workspace = true }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
 
+[dev-dependencies]
+vacro = { path = "../../", features = ["full"] }
+
 [features]
 default = ["extra-traits"]
 doc-all = ["vacro-doc-i18n/doc-all"]
