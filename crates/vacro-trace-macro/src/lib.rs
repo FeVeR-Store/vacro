@@ -5,8 +5,8 @@ pub(crate) mod utils;
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 捕获 TokenStream 快照。</div>
-/// <div class="doc-en"> Capture a TokenStream snapshot. </div>
+/// @cn 捕获 TokenStream 快照。
+/// @en Capture a TokenStream snapshot.
 ///
 /// ::: @cn
 ///
@@ -31,8 +31,8 @@ pub fn snapshot(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 通用日志宏。</div>
-/// <div class="doc-en"> Generic log macro. </div>
+/// @cn 通用日志宏。
+/// @en Generic log macro.
 ///
 /// ::: @cn
 ///
@@ -51,8 +51,8 @@ pub fn log(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 记录错误 (Error) 级别的日志。 </div>
-/// <div class="doc-en"> Logs an Error level message. </div>
+/// @cn 记录错误 (Error) 级别的日志。
+/// @en Logs an Error level message.
 pub fn error(input: TokenStream) -> TokenStream {
     impls::log::shortcut_impl("Error", input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -61,8 +61,8 @@ pub fn error(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 记录警告 (Warn) 级别的日志。 </div>
-/// <div class="doc-en"> Logs a Warn level message. </div>
+/// @cn 记录警告 (Warn) 级别的日志。
+/// @en Logs a Warn level message.
 pub fn warn(input: TokenStream) -> TokenStream {
     impls::log::shortcut_impl("Warn", input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -71,8 +71,8 @@ pub fn warn(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 记录信息 (Info) 级别的日志。 </div>
-/// <div class="doc-en"> Logs an Info level message. </div>
+/// @cn 记录信息 (Info) 级别的日志。
+/// @en Logs an Info level message.
 pub fn info(input: TokenStream) -> TokenStream {
     impls::log::shortcut_impl("Info", input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -81,8 +81,8 @@ pub fn info(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 记录调试 (Debug) 级别的日志。 </div>
-/// <div class="doc-en"> Logs a Debug level message. </div>
+/// @cn 记录调试 (Debug) 级别的日志。
+/// @en Logs a Debug level message.
 pub fn debug(input: TokenStream) -> TokenStream {
     impls::log::shortcut_impl("Debug", input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -91,8 +91,8 @@ pub fn debug(input: TokenStream) -> TokenStream {
 
 #[proc_macro]
 #[doc_i18n]
-/// <div class="doc-cn"> 记录追踪 (Trace) 级别的日志。 </div>
-/// <div class="doc-en"> Logs a Trace level message. </div>
+/// @cn 记录追踪 (Trace) 级别的日志。
+/// @en Logs a Trace level message.
 pub fn trace(input: TokenStream) -> TokenStream {
     impls::log::shortcut_impl("Trace", input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -101,8 +101,8 @@ pub fn trace(input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 #[doc_i18n]
-/// <div class="doc-cn"> 函数仪表化属性。</div>
-/// <div class="doc-en"> Function instrumentation attribute. </div>
+/// @cn 函数仪表化属性。
+/// @en Function instrumentation attribute.
 ///
 /// ::: @cn
 ///
