@@ -32,7 +32,7 @@ vacro-doc-i18n = "0.2"
 选择文档语言（示例）：
 
 ```toml
-vacro-doc-i18n = { version = "0.1", features = ["doc-cn"] }
+vacro-doc-i18n = { version = "0.2", features = ["doc-cn"] }
 ```
 
 ---
