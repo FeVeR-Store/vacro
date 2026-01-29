@@ -1,6 +1,6 @@
 [package]
 name = "vacro-parser"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
 documentation = "https://docs.rs/vacro-parser"
