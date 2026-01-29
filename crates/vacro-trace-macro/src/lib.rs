@@ -8,21 +8,21 @@ pub(crate) mod utils;
 /// <div class="doc-cn"> 捕获 TokenStream 快照。</div>
 /// <div class="doc-en"> Capture a TokenStream snapshot. </div>
 ///
-/// <div class="doc-cn">
+/// ::: @cn
 ///
 /// 将当前的 Token 状态记录下来，以便在 `vacro-cli` 中查看。
 /// 如果使用相同的 tag 调用多次，会自动展示 Diff。
 ///
 /// 用法：`snapshot!("tag", tokens)`
-/// </div>
+/// :::
 ///
-/// <div class="doc-en">
+/// ::: @en
 ///
 /// Records the current token state for inspection in `vacro-cli`.
 /// If called multiple times with the same tag, it will automatically show a Diff.
 ///
 /// Usage: `snapshot!("tag", tokens)`
-/// </div>
+/// :::
 pub fn snapshot(input: TokenStream) -> TokenStream {
     impls::snapshot::snapshot_impl(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -34,15 +34,15 @@ pub fn snapshot(input: TokenStream) -> TokenStream {
 /// <div class="doc-cn"> 通用日志宏。</div>
 /// <div class="doc-en"> Generic log macro. </div>
 ///
-/// <div class="doc-cn">
+/// ::: @cn
 ///
 /// 记录一条指定级别的日志消息。
-/// </div>
+/// :::
 ///
-/// <div class="doc-cn">
+/// ::: @cn
 ///
 /// Logs a message at the specified level.
-/// </div>
+/// :::
 pub fn log(input: TokenStream) -> TokenStream {
     impls::log::log_impl(input.into())
         .unwrap_or_else(|e| e.to_compile_error())
@@ -104,14 +104,14 @@ pub fn trace(input: TokenStream) -> TokenStream {
 /// <div class="doc-cn"> 函数仪表化属性。</div>
 /// <div class="doc-en"> Function instrumentation attribute. </div>
 ///
-/// <div class="doc-cn">
+/// ::: @cn
 ///
 /// 自动追踪函数的进入和退出，并记录参数信息。
-/// </div>
-/// <div class="doc-en">
+/// :::
+/// ::: @en
 ///
 /// Automatically traces function entry and exit, and logs argument information.
-/// </div>
+/// :::
 pub fn instrument(attr: TokenStream, input: TokenStream) -> TokenStream {
     impls::instrument::instrument_impl(attr.into(), input.into())
         .unwrap_or_else(|e| e.to_compile_error())

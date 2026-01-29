@@ -41,21 +41,25 @@ pub mod trace {
 /// <div class="doc-cn"> Vacro 常用功能的预导入模块。</div>
 /// <div class="doc-en"> A prelude for convenient access to commonly used Vacro features. </div>
 ///
-/// <div class="doc-cn">
+///
+/// ::: @cn
 ///
 /// 使用方式：
 /// ```rust
 /// use vacro::prelude::*;
 /// ```
-/// </div>
 ///
-/// <div class="doc-en">
+/// :::
+///
+/// ::: @en
 ///
 /// Usage:
 /// ```rust
 /// use vacro::prelude::*;
 /// ```
-/// </div>
+///
+/// :::
+///
 pub mod prelude {
     #[cfg(feature = "parser")]
     pub use crate::parser::{bind, define};
