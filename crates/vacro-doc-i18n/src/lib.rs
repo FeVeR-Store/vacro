@@ -45,8 +45,6 @@ fn lang_mode_from_features() -> LangMode {
         LangMode::All
     } else if cfg!(feature = "doc-cn") {
         LangMode::Cn
-    } else if cfg!(feature = "doc-en") {
-        LangMode::En
     } else {
         LangMode::En
     }
@@ -61,7 +59,7 @@ fn process_doc_syntax(input: &str, mode: LangMode) -> String {
 
         // 处理块结束标记 `:::`
         if trimmed == ":::" {
-            if let Some(_) = current_block_lang {
+            if current_block_lang.is_some() {
                 // 如果是 All 模式，我们需要闭合 div，并强制双换行重置 Markdown 上下文
                 if mode == LangMode::All {
                     out.push_str("</div>\n\n");
