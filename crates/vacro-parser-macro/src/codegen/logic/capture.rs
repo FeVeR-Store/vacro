@@ -9,7 +9,7 @@ use crate::{
     },
     codegen::{logic::Compiler, output::generate_output},
     transform::lookahead::inject_lookahead,
-    utils::crate_name,
+    utils::resolve_crate_root,
 };
 
 impl Compiler {
@@ -310,7 +310,7 @@ impl Compiler {
         }).collect()
     }
     fn generate_error_token(&self, variants: &[(EnumVariant, Matcher)]) -> TokenStream {
-        let pkg = crate_name();
+        let pkg = resolve_crate_root();
         let mut fmt_str = vec![];
         let mut fmt_args = Punctuated::<Expr, Token![,]>::new();
 
@@ -338,7 +338,7 @@ impl Compiler {
     fn define_enum_parse_impl(&mut self, variants: &[(EnumVariant, Matcher)], enum_name: &Type) {
         let parser = self.generate_parser(variants, enum_name);
         let err_tokens = self.generate_error_token(variants);
-        let pkg = crate_name();
+        let pkg = resolve_crate_root();
 
         let parse_impl = parse_quote! {
             impl ::syn::parse::Parse for #enum_name {

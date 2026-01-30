@@ -5,7 +5,7 @@ use syn::{
     parse_quote, Expr, Result, Token,
 };
 
-use crate::utils::crate_name;
+use crate::utils::resolve_crate_root;
 
 struct LogInput {
     level: Expr,
@@ -28,7 +28,7 @@ impl Parse for LogInput {
 
 // 公共的代码生成逻辑
 fn gen_log_code(level_expr: TokenStream, args: TokenStream) -> TokenStream {
-    let pkg = crate_name();
+    let pkg = resolve_crate_root();
 
     // 构造 format! 调用
     let msg_expr = if args.is_empty() {
@@ -56,7 +56,7 @@ pub fn log_impl(input: TokenStream) -> Result<TokenStream> {
 // 快捷宏的入口，例如 info!("msg")
 // 此时 input 只有 ("msg")，没有 level
 pub fn shortcut_impl(level_str: &str, input: TokenStream) -> Result<TokenStream> {
-    let pkg = crate_name();
+    let pkg = resolve_crate_root();
     // 这里我们直接构造 Level 枚举的路径，例如 ::vacro::trace::Level::Info
     // 注意：我们需要确保 pkg 引用的是正确的 crate 根
     let level_variant = syn::Ident::new(level_str, proc_macro2::Span::call_site());

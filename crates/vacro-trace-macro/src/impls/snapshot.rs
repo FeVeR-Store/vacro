@@ -1,4 +1,4 @@
-use crate::utils::crate_name;
+use crate::utils::resolve_crate_root;
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse::Parse, parse_quote, Expr, LitStr, Token};
@@ -22,7 +22,7 @@ pub fn snapshot_impl(input: TokenStream) -> syn::Result<TokenStream> {
     let input: SnapshotInput = parse_quote!(#input);
     let tag = input.tag;
     let ast = input.ast;
-    let pkg = crate_name();
+    let pkg = resolve_crate_root();
     let snapshot_impl = quote! {
         let ast = &#ast;
         let ast = #pkg::__private::quote!(##ast);

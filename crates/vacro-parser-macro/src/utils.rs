@@ -1,11 +1,25 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use proc_macro_crate::{crate_name, FoundCrate};
+use quote::{format_ident, quote};
 
-#[inline]
-pub fn crate_name() -> TokenStream {
-    if cfg!(feature = "standalone") {
-        quote! { ::vacro_parser }
-    } else {
-        quote! { ::vacro::parser }
+pub fn resolve_crate_root() -> TokenStream {
+    let found_vacro = crate_name("vacro");
+
+    if let Ok(FoundCrate::Name(name)) = found_vacro {
+        let import_root = format_ident!("{name}");
+        return quote!( ::#import_root::parser );
     }
+
+    let found_sub = crate_name("vacro-parser");
+
+    if let Ok(FoundCrate::Name(name)) = found_sub {
+        let import_root = format_ident!("{name}");
+        return quote!( ::#import_root );
+    }
+
+    if std::env::var("CARGO_PKG_NAME").unwrap_or_default() == "vacro-parser" {
+        return quote!(crate);
+    }
+
+    quote!(::vacro_parser)
 }

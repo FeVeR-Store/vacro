@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{parse_quote, ItemFn, Stmt};
 
-use crate::utils::crate_name;
+use crate::utils::resolve_crate_root;
 
 pub fn instrument_impl(_attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let mut fn_impl: ItemFn = parse_quote!(#input);
@@ -13,7 +13,7 @@ pub fn instrument_impl(_attr: TokenStream, input: TokenStream) -> syn::Result<To
             || path.is_ident("proc_macro_attribute")
             || path.is_ident("proc_macro_derive")
     });
-    let pkg = crate_name();
+    let pkg = resolve_crate_root();
 
     let macro_name = &fn_impl.sig.ident;
     let current_crate = std::env::var("CARGO_CRATE_NAME").unwrap_or_else(|_| "unknown".to_string());
