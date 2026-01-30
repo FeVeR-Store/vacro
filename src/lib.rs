@@ -67,6 +67,9 @@ pub mod prelude {
     #[cfg(feature = "report")]
     pub use crate::report::scope as report_scope;
 
+    #[cfg(feature = "report")]
+    pub use crate::report::help;
+
     #[cfg(feature = "trace")]
     pub use crate::trace::{debug, error, info, instrument, snapshot, trace, warn};
 }
@@ -77,3 +80,6 @@ pub use parser::{bind, define};
 
 #[cfg(feature = "trace")]
 pub use trace::snapshot;
+
+#[cfg(feature = "report")]
+pub use report::help;

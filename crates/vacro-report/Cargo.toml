@@ -1,6 +1,6 @@
 [package]
 name = "vacro-report"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 description = "Diagnostic reporting enhancements for Rust procedural macros, improving error messages."
 documentation = "https://docs.rs/vacro-report"
@@ -23,15 +23,17 @@ quote = { workspace = true }
 rust-format = { workspace = true }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
-vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.2" }
+vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.3" }
 
 [dev-dependencies]
 macros = { path = "./tests/macros" }
 trybuild = { workspace = true }
+vacro = { path = "../../", version = "0.2.1", features = ["parser", "report"] }
 
 [features]
 default = ["standalone"]
 doc-all = ["vacro-doc-i18n/doc-all"]
 doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-en = ["vacro-doc-i18n/doc-en"]
+parser = ["vacro-report-macro/parser"]
 standalone = ["vacro-report-macro/standalone"]

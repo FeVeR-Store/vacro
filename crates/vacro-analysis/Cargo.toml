@@ -11,6 +11,6 @@ categories = ["development-tools::debugging"]
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-vacro-trace = { path = "../vacro-trace", version = "0.1.0", default-features = false, features = [
+vacro-trace = { path = "../vacro-trace", version = "0.1.2", default-features = false, features = [
   "types"
 ] }

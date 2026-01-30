@@ -15,7 +15,7 @@
 
 ```toml
 [dependencies]
-vacro-report = "0.1.2"
+vacro-report = "0.1.3"
 ```
 
 ## 使用方法
@@ -45,3 +45,47 @@ fn generate_code() {
   > ⚠️ Warning
   >
   > 我们通过 `debug_assertions` 进行判断，意味着，如果您启用了某些优化，可能会导致效果无法触发
+
+## `help!` 宏（v0.1.3）
+
+此宏定义一个新的结构体（包装类型），它代理了底层解析类型（如 `syn::Ident` 或 `syn::Expr`）的行为，并允许你附加上下文相关的错误信息、帮助文本以及示例代码。
+
+## 语法
+
+```rust,ignore
+help!(NewTypeName: BaseType {
+    error: "简短的错误消息",
+    help: "更详细的帮助文本/建议",
+});
+
+```
+
+## 基础用法
+
+```rust
+# use vacro::help;
+use syn::Ident;
+
+help!(MyIdent: Ident {
+    error: "expected a valid identifier",
+    help: "identifiers must start with a letter or underscore"
+});
+
+```
+
+## 为 [vacro-parser](https://www.google.com/url?sa=E&source=gmail&q=https://docs.rs/vacro-parser/latest/vacro_parser) 提供支持
+
+当同时启用 `vacro` 的 `parser` 与 `report` 特性，或独立安装两个 crate 且启用 `vacro-report` 的 `parser` feature 时，你可以使用 `example` 字段为 `vacro-parser` 提供更多支持，以辅助其提供更详尽的帮助信息。
+
+```rust
+# use vacro::help;
+use syn::Expr;
+
+help!(Arithmetic: Expr {
+    error: "expected an arithmetic expression",
+    help: "try using explicit values like 1, 2 or operations like 1 + 2",
+    // 这里的 example 会用于辅助 vacro-parser
+    example: "1 + 2"
+});
+
+```
