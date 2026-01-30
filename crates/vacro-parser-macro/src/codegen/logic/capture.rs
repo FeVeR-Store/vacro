@@ -63,6 +63,84 @@ impl Compiler {
                     }
                 }
             }
+            (Binder::Named(name), Quantity::Many(separator), MatcherKind::Nested(_patterns)) => {
+                let item_name = format_ident!("{}_Item", name);
+
+                let optimized_list = inject_lookahead(_patterns.clone());
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
+                };
+                let (capture_init, struct_def, struct_expr, _) =
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+
+                let pattern_tokens = self.compile_pattern(&patterns);
+
+                self.define_invisible_item(parse_quote! {
+                    #[allow(non_camel_case_types)]
+                    pub #struct_def
+                });
+                self.define_invisible_item(parse_quote! {
+                    impl ::syn::parse::Parse for #item_name {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                            trait _Parse: ::syn::parse::Parse {}
+                            #capture_init
+                            #pattern_tokens
+                            ::std::result::Result::Ok(#struct_expr)
+                        }
+                    }
+                });
+
+                quote! {
+                    {
+                        #[allow(non_local_definitions)]
+                        impl _Parse for #item_name {}
+                        #receiver input.parse_terminated(#item_name::parse, #separator)?;
+                    }
+                }
+            }
+            (Binder::Named(name), Quantity::One, MatcherKind::Nested(_patterns)) => {
+                let item_name = format_ident!("{}_Item", name);
+
+                let optimized_list = inject_lookahead(_patterns.clone());
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
+                };
+                let (capture_init, struct_def, struct_expr, _) =
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+
+                let pattern_tokens = self.compile_pattern(&patterns);
+
+                self.define_invisible_item(parse_quote! {
+                    #[allow(non_camel_case_types)]
+                    pub #struct_def
+                });
+                self.define_invisible_item(parse_quote! {
+                    impl ::syn::parse::Parse for #item_name {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                            trait _Parse: ::syn::parse::Parse {}
+                            #capture_init
+                            #pattern_tokens
+                            ::std::result::Result::Ok(#struct_expr)
+                        }
+                    }
+                });
+
+                quote! {
+                    {
+                         #receiver input.parse::<#item_name>()?;
+                    }
+                }
+            }
             (Binder::Anonymous, Quantity::One, MatcherKind::Nested(_patterns)) => {
                 let optimized_list = inject_lookahead(_patterns.clone());
 
@@ -76,9 +154,7 @@ impl Compiler {
                 };
                 let pattern_tokens = self.compile_pattern(&patterns);
                 quote! {
-                    {
-                        #pattern_tokens
-                    }
+                    #pattern_tokens
                 }
             }
             (Binder::Anonymous, Quantity::Optional, MatcherKind::Nested(_patterns)) => {

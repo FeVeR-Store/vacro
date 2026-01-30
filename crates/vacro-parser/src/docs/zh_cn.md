@@ -101,9 +101,10 @@ vacro = { version: "0.2.2", features: ["parser", "report"] }
 
 ```rust,compile_fail
 use vacro::{help, define};
-#use syn::Ident;
-help! {
-    BoolLit: {
+# use syn::{Ident, LitBool};
+
+help! {Bool:
+    LitBool {
         error: "此处需要一个bool字面量，接收到的是：{input}",
         help: "尝试`true`或`false`",
         example: (true | false) // example 字段是要展示的示例字段，在生成错误信息与使用示例时使用；它接受一段TokenStream，并且将直接展示你传入的内容
@@ -111,7 +112,7 @@ help! {
 }
 
 define!(MyRoles: {
-    #(roles*[,]: #(pair: #(name: Ident): #(enable: BoolLit)))
+    #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))
 });
 
 ```

@@ -150,8 +150,23 @@ impl Matcher {
             }
 
             MatcherKind::Nested(children) => {
-                // 处理嵌套节点：递归收集所有子 Pattern 的字段
-                children.iter().flat_map(|p| p.collect_captures()).collect()
+                if let Binder::Named(ident) = binder {
+                    let type_name = quote::format_ident!("{}_Item", ident);
+                    let ty = if let Some(scope) = crate::scope_context::get_scope_ident() {
+                        syn::parse_quote!(#scope::#type_name)
+                    } else {
+                        syn::parse_quote!(#type_name)
+                    };
+                    vec![FieldDef {
+                        name: ident.clone(),
+                        ty,
+                        is_optional: false,
+                        is_inline: false,
+                    }]
+                } else {
+                    // 处理嵌套节点：递归收集所有子 Pattern 的字段
+                    children.iter().flat_map(|p| p.collect_captures()).collect()
+                }
             }
         }
     }

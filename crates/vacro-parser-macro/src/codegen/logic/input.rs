@@ -5,11 +5,13 @@ use syn::Local;
 use crate::{
     ast::input::{BindInput, DefineInput},
     codegen::{logic::Compiler, output::generate_output},
+    scope_context,
 };
 
 /// 入口部分
 impl Compiler {
     pub fn compile_capture_input(&mut self, input: &BindInput) -> TokenStream {
+        scope_context::set_scope_ident(None);
         let mut tokens = TokenStream::new();
 
         let BindInput {
@@ -19,12 +21,16 @@ impl Compiler {
             suffix,
             ..
         } = input;
+
+        self.target = Self::pat_to_ident(pat);
+
         let patterns_tokens = self.compile_pattern(patterns);
         let captures = patterns.collect_captures();
 
         let Compiler {
             shared_definition,
             scoped_definition,
+            ..
         } = &self;
 
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
@@ -48,6 +54,10 @@ impl Compiler {
     pub fn compile_define_input(&mut self, input: &DefineInput) -> TokenStream {
         let mut tokens = TokenStream::new();
         let DefineInput { name, patterns, .. } = input;
+
+        self.target = name.clone();
+        scope_context::set_scope_ident(Some(self.get_private_scope_ident()));
+
         let patterns_tokens = self.compile_pattern(patterns);
 
         let captures = patterns.collect_captures();
@@ -55,6 +65,7 @@ impl Compiler {
         let Compiler {
             shared_definition,
             scoped_definition,
+            ..
         } = &self;
 
         let (capture_init, struct_def, struct_expr, _) =
@@ -73,6 +84,7 @@ impl Compiler {
                 }
             }
         });
+        scope_context::set_scope_ident(None);
         tokens
     }
 }
