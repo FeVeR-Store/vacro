@@ -101,18 +101,18 @@ vacro = { version: "0.2.2", features: ["parser", "report"] }
 
 ```rust,compile_fail
 use vacro::{help, define};
-#use syn::Ident;
+# use syn::{Ident, LitBool};
 
-help! {
-    BoolLit: {
+help! (Bool:
+    LitBool {
         error: "A boolean literal is required here; the received value is: {input}".
         help: "Try `true` or `false`",
         example: (true | false) // The example field is the sample field to be displayed, used when generating error messages and usage examples; it accepts a TokenStream and will directly display the content you pass in.
     }
-}
+)
 
 define!(MyRoles: {
-    #(roles*[,]: #(pair: #(name: Ident): #(enable: BoolLit)))
+    #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))
 });
 
 ```

@@ -17,7 +17,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-vacro-parser = "0.1.6"
+vacro-parser = "0.1.7"
 ```
 
 ## Core Features
@@ -95,18 +95,18 @@ vacro = { version: "0.2.2", features: ["parser", "report"] }
 
 ```rust
 use vacro::{help, define};
-#use syn::Ident;
+use syn::{Ident, LitBool};
 
-help! {
-    BoolLit: {
+help! (Bool:
+    LitBool {
         error: "A boolean literal is required here; the received value is: {input}".
         help: "Try `true` or `false`",
         example: (true | false) // The example field is the sample field to be displayed, used when generating error messages and usage examples; it accepts a TokenStream and will directly display the content you pass in.
     }
-}
+)
 
 define!(MyRoles: {
-    #(roles*[,]: #(pair: #(name: Ident): #(enable: BoolLit)))
+    #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))
 });
 
 ```
