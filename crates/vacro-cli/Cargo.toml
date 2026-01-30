@@ -1,6 +1,6 @@
 [package]
 name = "vacro-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "TUI visualization tool for inspecting Vacro toolkits."
 readme = "README.md"
@@ -23,7 +23,7 @@ similar = "2.7.0"
 syntect = "5.2"
 unicode-width = "0.1"
 vacro-analysis = { path = "../vacro-analysis", version = "0.1.0" }
-vacro-trace = { path = "../vacro-trace", version = "0.1.0", default-features = false, features = [
+vacro-trace = { path = "../vacro-trace", version = "0.1.2", default-features = false, features = [
   "types"
 ] }
 
