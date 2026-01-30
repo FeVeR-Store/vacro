@@ -20,18 +20,21 @@ custom_keyword!(error);
 custom_keyword!(help);
 custom_keyword!(example);
 
+#[allow(clippy::from_over_into)]
 impl Into<HelpField> for error {
     fn into(self) -> HelpField {
         HelpField::Error(TokenStream::new())
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<HelpField> for help {
     fn into(self) -> HelpField {
         HelpField::Help(TokenStream::new())
     }
 }
 #[cfg(feature = "parser")]
+#[allow(clippy::from_over_into)]
 impl Into<HelpField> for example {
     fn into(self) -> HelpField {
         HelpField::Example(TokenStream::new())
@@ -64,10 +67,7 @@ impl Parse for HelpField {
             input.parse::<example>()?.into()
         } else {
             let token: Ident = input.parse()?;
-            return Err(input.error(format!(
-                "expect `error`, `help`, find {}",
-                token.to_string()
-            )));
+            return Err(input.error(format!("expect `error`, `help`, find {}", token)));
         };
         let _colon: Token![:] = input.parse()?;
         let fork = input.fork();
@@ -126,7 +126,7 @@ impl Parse for Help {
             error: error.ok_or(syn::Error::new(brace_span, "expected error field"))?,
             help: help.ok_or(syn::Error::new(brace_span, "expected help field"))?,
             #[cfg(feature = "parser")]
-            example: example.ok_or(syn::Error::new(brace_span, "expected example field"))?,
+            example: example.unwrap_or(TokenStream::new()),
         })
     }
 }
@@ -153,8 +153,11 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
+
     let example_token = quote! {#example}.to_string();
-    let parser_help_impl = if cfg!(feature = "parser") {
+    let parser_help_impl = if example.is_empty() {
+        quote! {}
+    } else if cfg!(feature = "parser") {
         let pkg = if cfg!(feature = "standalone") {
             quote! {::vacro_parser}
         } else {
