@@ -20,23 +20,23 @@ pub use vacro_trace_macro::*;
 #[cfg(feature = "macros")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[doc_i18n]
-/// <div class="doc-cn"> 日志级别。 </div>
-/// <div class="doc-en"> Log level. </div>
+/// @cn 日志级别。
+/// @en Log level.
 pub enum Level {
-    /// <div class="doc-cn"> 错误级别 (Error)。 </div>
-    /// <div class="doc-en"> Error level. </div>
+    /// @cn 错误级别 (Error)。
+    /// @en Error level.
     Error,
-    /// <div class="doc-cn"> 警告级别 (Warn)。 </div>
-    /// <div class="doc-en"> Warn level. </div>
+    /// @cn 警告级别 (Warn)。
+    /// @en Warn level.
     Warn,
-    /// <div class="doc-cn"> 信息级别 (Info)。 </div>
-    /// <div class="doc-en"> Info level. </div>
+    /// @cn 信息级别 (Info)。
+    /// @en Info level.
     Info,
-    /// <div class="doc-cn"> 调试级别 (Debug)。 </div>
-    /// <div class="doc-en"> Debug level. </div>
+    /// @cn 调试级别 (Debug)。
+    /// @en Debug level.
     Debug,
-    /// <div class="doc-cn"> 追踪级别 (Trace)。 </div>
-    /// <div class="doc-en"> Trace level. </div>
+    /// @cn 追踪级别 (Trace)。
+    /// @en Trace level.
     Trace,
 }
 

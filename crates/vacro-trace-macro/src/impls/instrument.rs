@@ -19,7 +19,11 @@ pub fn instrument_impl(_attr: TokenStream, input: TokenStream) -> syn::Result<To
     let current_crate = std::env::var("CARGO_CRATE_NAME").unwrap_or_else(|_| "unknown".to_string());
     let mut enter_session: Vec<Stmt> = parse_quote! {
         #[doc(hidden)]
-        let __guard = #pkg::__private::TraceSession::enter(stringify!(#macro_name), #current_crate);
+        let __guard = if cfg!(debug_assertions) || ::std::env::var("VACRO_TRACE").is_ok() {
+            ::std::option::Option::Some(#pkg::__private::TraceSession::enter(stringify!(#macro_name), #current_crate))
+        } else {
+            ::std::option::Option::None
+        };
     };
     let mut stmts = fn_impl.block.stmts;
     enter_session.append(&mut stmts);

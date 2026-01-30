@@ -15,7 +15,7 @@ It acts as the **capture layer**, designed to work hand-in-hand with **`vacro-cl
 
 ```toml
 [dependencies]
-vacro-trace = "0.1.0"
+vacro-trace = "0.1.2"
 ```
 
 ## Usage

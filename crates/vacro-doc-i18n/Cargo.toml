@@ -1,6 +1,6 @@
 [package]
 name = "vacro-doc-i18n"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Doc i18n filter for Rustdoc/IDE via #[doc_i18n]."
 documentation = "https://docs.rs/vacro-doc-i18n"

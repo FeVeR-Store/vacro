@@ -30,7 +30,7 @@ pub fn snapshot_impl(input: TokenStream) -> syn::Result<TokenStream> {
     };
 
     let code = parse_quote! {
-        if ::std::env::var("VACRO_TRACE").is_ok() {
+        if cfg!(debug_assertions) || ::std::env::var("VACRO_TRACE").is_ok() {
             #snapshot_impl
         }
     };

@@ -1,6 +1,6 @@
 use quote::quote;
 use std::str::FromStr;
-use syn::{Ident, LitInt, Type};
+use syn::{Ident, LitBool, LitInt, Type};
 use vacro_parser::bind;
 
 use proc_macro2::TokenStream;
@@ -126,4 +126,64 @@ fn test_capture_fail() {
     );
 
     assert!(res.is_err()); // 应该报错
+}
+
+// 4. 关联捕获
+
+#[test]
+fn test_named_nested_list() {
+    let input = quote!({ a, b, c });
+    bind! {
+        let res = (input -> {
+            #(roles*[,]: #(ident: Ident))
+        }).unwrap();
+    }
+    assert_eq!(res.roles.len(), 3);
+    // Check if the inner struct is accessible and correct
+    assert_eq!(res.roles[0].ident.to_string(), "a");
+    assert_eq!(res.roles[1].ident.to_string(), "b");
+    assert_eq!(res.roles[2].ident.to_string(), "c");
+}
+
+#[test]
+fn test_named_nested_complex() {
+    let input = quote!({ a: true, b: false });
+    bind! {
+        let res = (input -> {
+            #(items*[,]: #(pair: #(key: Ident): #(val: LitBool)))
+        }).unwrap();
+    }
+    assert_eq!(res.items.len(), 2);
+
+    // Accessing nested struct fields
+    assert_eq!(res.items[0].pair.key.to_string(), "a");
+    assert!(res.items[0].pair.val.value);
+
+    assert_eq!(res.items[1].pair.key.to_string(), "b");
+    assert!(!res.items[1].pair.val.value);
+}
+
+#[test]
+fn test_named_one_nested() {
+    let input = quote!({ my_val });
+    bind! {
+        let res = (input -> {
+            #(inner: #(val: Ident))
+        }).unwrap();
+    }
+    assert_eq!(res.inner.val.to_string(), "my_val");
+}
+
+#[test]
+fn test_mixed_nested() {
+    let input = quote!({ x y z });
+    bind! {
+        let res = (input -> {
+            #(a: Ident)
+            #(nested: #(b: Ident) #(c: Ident))
+        }).unwrap();
+    }
+    assert_eq!(res.a.to_string(), "x");
+    assert_eq!(res.nested.b.to_string(), "y");
+    assert_eq!(res.nested.c.to_string(), "z");
 }

@@ -15,7 +15,7 @@
 使用 `define!` 定义一个结构体，它会自动实现 `syn::parse::Parse`。
 
 ```rust
-# use syn::{Ident, Type, GenericParam, FnArg, parse_macro_input, Token};
+# use syn::{Ident, Type, GenericParam, FnArg, parse_quote, Token};
 # use vacro::define;
 // 定义一个名为 MyFn 的结构体，它会自动实现 Parse trait
 vacro::define!(MyFn:
@@ -26,11 +26,11 @@ vacro::define!(MyFn:
     #(?: -> #(ret: Type))
 );
 
-fn parse_my_fn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+fn parse_my_fn(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     // 使用方式
-    let my_fn = parse_macro_input!(input as MyFn);
+    let my_fn: MyFn = parse_quote!(input);
     println!("Function name: {}", my_fn.name);
-    proc_macro::TokenStream::new()
+    proc_macro2::TokenStream::new()
 }
 # fn main() {}
 ```
@@ -62,15 +62,15 @@ if let Some(ret_type) = captured.ret {
 
 ## 语法参考
 
-| 语法 | 描述 | 解析结果类型 | 示例 |
-| :--- | :--- | :--- | :--- |
-| `literal` | 匹配并消费确切的 Token | `!` | `fn`, `->`, `struct` |
-| `#(x: T)` | **具名捕获**: 捕获类型 `T` 到字段 `x` | `T` | `#(name: Ident)` |
-| `#(x?: T)` | **具名可选**: 尝试解析，失败则跳过 | `Option<T>` | `#(ret?: Type)` |
-| `#(x*[sep]: T)` | **具名迭代**: 按分隔符解析 | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
-| `#(T)` | **匿名捕获**: 验证 `T` 存在但不捕获 | `!` | `#(Ident)` |
-| `#(?: T)` | **匿名可选**: 仅作验证 | `!` | `#(?: Ident)` |
-| `#(*[sep]: T)` | **匿名迭代**: 仅作验证 | `!` | `#(*[,]: Ident)` |
+| 语法            | 描述                                  | 解析结果类型         | 示例                 |
+| :-------------- | :------------------------------------ | :------------------- | :------------------- |
+| `literal`       | 匹配并消费确切的 Token                | `!`                  | `fn`, `->`, `struct` |
+| `#(x: T)`       | **具名捕获**: 捕获类型 `T` 到字段 `x` | `T`                  | `#(name: Ident)`     |
+| `#(x?: T)`      | **具名可选**: 尝试解析，失败则跳过    | `Option<T>`          | `#(ret?: Type)`      |
+| `#(x*[sep]: T)` | **具名迭代**: 按分隔符解析            | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
+| `#(T)`          | **匿名捕获**: 验证 `T` 存在但不捕获   | `!`                  | `#(Ident)`           |
+| `#(?: T)`       | **匿名可选**: 仅作验证                | `!`                  | `#(?: Ident)`        |
+| `#(*[sep]: T)`  | **匿名迭代**: 仅作验证                | `!`                  | `#(*[,]: Ident)`     |
 
 ## 多态捕获 (Enum Parsing)
 
@@ -90,3 +90,35 @@ vacro::define!(MyPoly:
 );
 # fn main() {}
 ```
+
+## 更友好的提示 (v0.1.6)
+
+你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
+
+```toml
+vacro = { version: "0.2.2", features: ["parser", "report"] }
+```
+
+```rust,compile_fail
+use vacro::{help, define};
+# use syn::{Ident, LitBool};
+
+help! {Bool:
+    LitBool {
+        error: "此处需要一个bool字面量，接收到的是：{input}",
+        help: "尝试`true`或`false`",
+        example: (true | false) // example 字段是要展示的示例字段，在生成错误信息与使用示例时使用；它接受一段TokenStream，并且将直接展示你传入的内容
+    }
+}
+
+define!(MyRoles: {
+    #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))
+});
+
+```
+
+<div class="warning">
+
+此示例不能通过编译，其中使用的关联捕获语法`#(pair: #(name: Ident): #(enable: BoolLit))`将在后续实现，参见[关联捕获](https://github.com/FeVeR-Store/vacro/issues/38)
+
+</div>

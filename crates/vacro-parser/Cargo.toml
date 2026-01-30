@@ -1,6 +1,6 @@
 [package]
 name = "vacro-parser"
-version = "0.1.5"
+version = "0.1.7"
 edition = "2021"
 description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
 documentation = "https://docs.rs/vacro-parser"
@@ -14,23 +14,20 @@ categories = ["development-tools::procedural-macro-helpers", "parsing"]
 features = ["doc-all"]
 rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 
-[lib]
-proc-macro = true
-
 [dependencies]
 proc-macro2 = { workspace = true }
-quote = { workspace = true }
-syn = { workspace = true }
-vacro-doc-i18n = "0.1.0"
+vacro-parser-macro = { path = "../vacro-parser-macro", version = "0.1.7" }
 
 [dev-dependencies]
+quote = { workspace = true }
 syn = { workspace = true, features = ["extra-traits", "full"] }
 trybuild = { workspace = true }
 vacro = { path = "../../", features = ["full"] }
 
 [features]
-default = []
-doc-all = ["vacro-doc-i18n/doc-all"]
-doc-cn = ["vacro-doc-i18n/doc-cn"]
-doc-en = ["vacro-doc-i18n/doc-en"]
-extra-traits = ["syn/extra-traits"]
+default = ["standalone"]
+doc-all = ["vacro-parser-macro/doc-all"]
+doc-cn = ["vacro-parser-macro/doc-cn"]
+doc-en = ["vacro-parser-macro/doc-en"]
+extra-traits = ["vacro-parser-macro/extra-traits"]
+standalone = ["vacro-parser-macro/standalone"]

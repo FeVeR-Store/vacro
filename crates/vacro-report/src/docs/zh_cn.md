@@ -6,13 +6,13 @@
 
 `vacro-report` 是一个专为 Rust 过程宏（Procedural Macros）设计的诊断增强工具。
 
-目前它主要用于解决 `syn::parse_quote!` 产生的 Panic 信息晦涩难懂的问题。当 `parse_quote!` 解析失败时，通常只会抛出一个简单的 "failed to parse"。`vacro-report` 能够拦截这些调用，并在失败时打印出实际生成的 Token 流（已格式化），并高亮显示语法错误的位置。
+目前它主要用于解决 `syn::parse_quote!` 或 `parse_quote_spanned` 产生的 Panic 信息晦涩难懂的问题。当 `parse_quote!` 或 `parse_quote_spanned` 解析失败时，通常只会抛出一个简单的 "failed to parse"。`vacro-report` 能够拦截这些调用，并在失败时打印出实际生成的已格式化的 Token 流，并高亮显示语法错误的位置。
 
 ## 使用方法
 
 只需在你的函数上添加 `#[vacro_report::scope]` 属性宏。
 
-在该作用域内，所有的 `parse_quote!` 调用都会被自动增强。无需修改内部代码。
+在该作用域内，所有的 `parse_quote!` 和 `parse_quote_spanned` 调用都会被自动增强。无需修改内部代码。
 
 ```rust,ignore
 # use syn::{parse_quote, Expr, Token};
@@ -28,10 +28,14 @@ fn generate_code() {
 
 ## 特性
 
-* **自动拦截**：自动重写 `#[scope]` 函数内部的 `parse_quote!` 调用。
-* **详细诊断**：发生解析错误时，展示格式化后的生成代码及错误位置。
-* **零开销（成功路径）**：仅在发生错误（Panic 路径）时才会有额外开销。
+- **自动拦截**：自动重写 `#[scope]` 函数内部的 `parse_quote!` 与 `parse_quote_spanned!` 的调用。
+- **详细诊断**：发生解析错误时，展示格式化后的生成代码及错误位置。
+- **零开销（成功路径）**：仅在发生错误（Panic 路径）时才会有额外开销，在生产环境时，只有您写的源代码会被包含。
+
+<div class="warning">   
+我们通过 `debug_assertions` 进行判断，意味着，如果您启用了某些优化，可能会导致效果无法触发。
+</div>
 
 ## 未来计划
 
-* 支持更多的 `syn` 宏以及自定义解析逻辑的诊断增强。
+- 支持更多的 `syn` 宏以及自定义解析逻辑的诊断增强。

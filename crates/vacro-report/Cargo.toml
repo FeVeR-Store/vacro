@@ -22,8 +22,8 @@ proc-macro2 = "1.0"
 quote = { workspace = true }
 rust-format = { workspace = true }
 syn = { version = "2.0", features = ["full", "visit-mut"] }
-vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
-vacro-report-macro = { path = "../vacro-report-macro" }
+vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
+vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.3" }
 
 [dev-dependencies]
 macros = { path = "./tests/macros" }
