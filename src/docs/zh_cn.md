@@ -101,26 +101,28 @@ cargo vacro
 
 编写如下测试代码，运行测试后即可在 CLI 中查看捕获的日志和快照演变：
 
-```rust,ignore
+```rust
+use vacro::trace::{debug, error, info, instrument, snapshot, warn};
+
 #[test]
 #[instrument]
 fn test_function() {
-    // 1. 记录日志 (Log)
+    // 1. Log
     info!("Function started");
     warn!("This is a warning");
     error!("This is an error");
 
-    // 2. 捕获快照 (Snapshot)
-    // 初始状态
+    // 2. Snapshot
+    // Initial state
     let code_snippet = quote! { x: i32 };
     snapshot!("Field", code_snippet);
 
-    // 状态变更：包裹在结构体中
-    // vacro-cli 将自动识别 "Struct" 标签的多次快照并展示 Diff
+    // State change: Wrap in a struct
+    // vacro-cli will automatically diff multiple snapshots with the "Struct" tag
     let code_snippet = quote! { struct A { #code_snippet }};
     snapshot!("Struct", code_snippet);
 
-    // 状态变更：添加 derive
+    // State change: Add derive
     let code_snippet = quote! {
         #[derive(Debug)]
         #code_snippet

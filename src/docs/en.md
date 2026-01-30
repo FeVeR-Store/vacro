@@ -16,12 +16,12 @@ Writing procedural macros in Rust shouldn't be a nightmare filled with boilerpla
 
 Vacro is designed as a modular framework. You can use the fully-featured `vacro` entry point or pick specific underlying components as needed.
 
-| Feature | Crate | Description |
-| :--- | :--- | :--- |
-| **Parsing** | `vacro-parser` | **Declarative Parsing.** A DSL similar to `macro_rules!` that automatically implements `syn::Parse`. |
-| **Debugging** | `vacro-trace` | **Visual Tracing.** Captures snapshots and logs to solve complex grammar debugging issues. |
-| **Visualization** | `vacro-cli` | **TUI Tool.** A terminal interface to inspect traces and diff snapshots captured by `vacro-trace`. |
-| **Diagnostics** | `vacro-report` | **Error Reporting.** Simplifies the construction and emission of diagnostic messages in proc-macros. |
+| Feature           | Crate          | Description                                                                                          |
+| :---------------- | :------------- | :--------------------------------------------------------------------------------------------------- |
+| **Parsing**       | `vacro-parser` | **Declarative Parsing.** A DSL similar to `macro_rules!` that automatically implements `syn::Parse`. |
+| **Debugging**     | `vacro-trace`  | **Visual Tracing.** Captures snapshots and logs to solve complex grammar debugging issues.           |
+| **Visualization** | `vacro-cli`    | **TUI Tool.** A terminal interface to inspect traces and diff snapshots captured by `vacro-trace`.   |
+| **Diagnostics**   | `vacro-report` | **Error Reporting.** Simplifies the construction and emission of diagnostic messages in proc-macros. |
 
 ## Quick Start
 
@@ -101,7 +101,9 @@ cargo vacro
 
 Run the following test, then open the CLI to inspect the captured logs and snapshot evolution:
 
-```rust,ignore
+```rust
+use vacro::trace::{debug, error, info, instrument, snapshot, warn};
+
 #[test]
 #[instrument]
 fn test_function() {
