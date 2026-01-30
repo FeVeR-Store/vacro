@@ -156,7 +156,7 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
     } else {
         quote! {}
     };
-
+    let example_token = quote! {#example}.to_string();
     let parser_help_impl = if cfg!(feature = "parser") {
         let pkg = if cfg!(feature = "standalone") {
             quote! {::vacro_parser}
@@ -164,9 +164,9 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
             quote! {::vacro::parser}
         };
         quote! {
-            impl #alias for #pkg::__private::Help {
-                fn example() -> ::proc_macro2::TokenStream {
-                    quote! { #example }
+            impl #alias for #pkg::__private::CustomHelp {
+                fn example() -> ::std::string::String {
+                    ::std::string::String::from(#example_token)
                 }
             }
         }
