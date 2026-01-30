@@ -15,7 +15,7 @@
 
 ```toml
 [dependencies]
-vacro-report = "0.1.2"
+vacro-report = "0.1.3"
 ```
 
 ## 使用方法

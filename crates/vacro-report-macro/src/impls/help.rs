@@ -161,8 +161,8 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
             quote! {::vacro::parser}
         };
         quote! {
-            impl #alias for #pkg::__private::CustomHelp {
-                fn example() -> ::std::string::String {
+            impl #pkg::__private::CustomHelp for #alias {
+                fn custom_message() -> ::std::string::String {
                     ::std::string::String::from(#example_token)
                 }
             }

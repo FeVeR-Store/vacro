@@ -1,9 +1,10 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use vacro_report::{help, scope};
 
 #[proc_macro]
-#[vacro_report::scope]
+#[scope]
 pub fn parse_stmt(input: TokenStream) -> TokenStream {
     let input: proc_macro2::TokenStream = input.into();
     let output: Stmt = parse_quote!(#input);
@@ -11,7 +12,7 @@ pub fn parse_stmt(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-#[vacro_report::scope]
+#[scope]
 pub fn parse_stmt_spanned(input: TokenStream) -> TokenStream {
     let input: proc_macro2::TokenStream = input.into();
     let span = Span::call_site();
@@ -23,7 +24,6 @@ use syn::{
     parse::{Parse, Parser},
     parse_quote, parse_quote_spanned, LitStr, Stmt,
 };
-use vacro_report::help;
 
 help!(MyLitStr: LitStr {
     error: "这里需要一个String字面量",
