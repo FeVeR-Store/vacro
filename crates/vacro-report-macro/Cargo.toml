@@ -1,6 +1,6 @@
 [package]
 name = "vacro-report-macro"
-version = "0.1.0"
+version = "0.1.3"
 edition = "2021"
 description = "Internal macro implementation for vacro-report."
 repository = "https://github.com/FeVeR-Store/vacro"
@@ -16,10 +16,9 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true, features = ["full", "visit-mut"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.1.0" }
-vacro-trace = { version = "0.1.2", features = ["standalone"] }
 
 [features]
 default = ["quote"]
-parser = []
+parser2 = []
 quote = []
 standalone = []

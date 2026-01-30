@@ -8,7 +8,6 @@ use syn::{
     token::Brace,
     Ident, Token, Type,
 };
-use vacro_trace::{info, snapshot};
 
 pub enum HelpField {
     Help(TokenStream),
@@ -52,7 +51,6 @@ impl HelpField {
 
 impl Parse for HelpField {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        info!("{}", input.to_string());
         let mut field: HelpField = if input.peek(error) {
             input.parse::<error>()?.into()
         } else if input.peek(help) {
@@ -77,7 +75,6 @@ impl Parse for HelpField {
         while !fork.peek(Token![,]) && !fork.is_empty() {
             tokens.append(fork.parse::<TokenTree>()?);
         }
-        snapshot!("tokens", tokens);
         input.advance_to(&fork);
         field.set_inner(tokens);
         Ok(field)
