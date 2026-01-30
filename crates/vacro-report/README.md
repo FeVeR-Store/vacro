@@ -45,3 +45,49 @@ fn generate_code() {
   > ⚠️ Warning
   >
   > We use `debug_assertions` to make this judgment, which means that if you have enabled certain optimizations, the effect may not trigger.
+
+## Macro `help!` (v0.1.3)
+
+Creates a wrapper type with enhanced error reporting and smart hints.
+
+This macro defines a new struct (wrapper type) that proxies the behavior of the underlying parsing type (such as `syn::Ident` or `syn::Expr`) and allows you to attach context-aware error messages, help text, and code examples.
+
+## Syntax
+
+```rust,ignore
+help!(NewTypeName: BaseType {
+    error: "Short error message",
+    help: "More detailed help text/suggestions",
+});
+
+```
+
+## Basic Usage
+
+```rust
+# use vacro::help;
+use syn::Ident;
+
+help!(MyIdent: Ident {
+    error: "expected a valid identifier",
+    help: "identifiers must start with a letter or underscore"
+});
+
+```
+
+## Support for [vacro-parser](https://www.google.com/url?sa=E&source=gmail&q=https://docs.rs/vacro-parser/latest/vacro_parser)
+
+When both the `parser` and `report` features of `vacro` are enabled, or when `vacro-report` is installed independently with the `parser` feature enabled, you can use the `example` field to provide additional support for `vacro-parser`, enabling it to generate more detailed help information.
+
+```rust
+# use vacro::help;
+use syn::Expr;
+
+help!(Arithmetic: Expr {
+    error: "expected an arithmetic expression",
+    help: "try using explicit values like 1, 2 or operations like 1 + 2",
+    // The example here will be used to assist vacro-parser
+    example: "1 + 2"
+});
+
+```
