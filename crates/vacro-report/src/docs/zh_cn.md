@@ -14,7 +14,7 @@
 
 在该作用域内，所有的 `parse_quote!` 和 `parse_quote_spanned` 调用都会被自动增强。无需修改内部代码。
 
-```rust,ignore
+```rust
 # use syn::{parse_quote, Expr, Token};
 # use vacro_report::scope;
 #[scope]
@@ -52,7 +52,7 @@ help!(NewTypeName: BaseType {
 
 ## 基础用法
 
-```rust,ignore
+```rust
 # use vacro::help;
 use syn::Ident;
 
@@ -67,7 +67,7 @@ help!(MyIdent: Ident {
 
 当同时启用 `vacro` 的 `parser` 与 `report` 特性，或独立安装两个 crate 且启用 `vacro-report` 的 `parser` feature 时，你可以使用 `example` 字段为 `vacro-parser` 提供更多支持，以辅助其提供更详尽的帮助信息。
 
-```rust,ignore
+```rust
 # use vacro::help;
 use syn::Expr;
 

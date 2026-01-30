@@ -9,6 +9,8 @@ use syn::{
     Ident, Token, Type,
 };
 
+use crate::utils::resolve_vacro_parser_root;
+
 pub enum HelpField {
     Help(TokenStream),
     Error(TokenStream),
@@ -158,11 +160,7 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
     let parser_help_impl = if example.is_empty() {
         quote! {}
     } else if cfg!(feature = "parser") {
-        let pkg = if cfg!(feature = "standalone") {
-            quote! {::vacro_parser}
-        } else {
-            quote! {::vacro::parser}
-        };
+        let pkg = resolve_vacro_parser_root();
         quote! {
             impl #pkg::__private::CustomHelp for #alias {
                 fn custom_message() -> ::std::string::String {

@@ -71,7 +71,7 @@ pub fn parse_quote_spanned(input: TokenStream) -> TokenStream {
 ///
 /// 若启用了 `vacro-parser` 支持，还可以提供 `example` 字段。这将激活智能提示联动，使解析器在报错时显示具体的代码示例而非类型名。
 ///
-/// ```rust,ignore
+/// ```rust
 /// # use vacro::help;
 /// help!(Arithmetic: syn::Expr {
 ///     error: "expected an arithmetic expression",
@@ -87,7 +87,7 @@ pub fn parse_quote_spanned(input: TokenStream) -> TokenStream {
 ///
 /// If `vacro-parser` support is enabled, the `example` field can be provided. This activates smart hint synergy, causing the parser to show specific code examples instead of type names when errors occur.
 ///
-/// ```rust,ignore
+/// ```rust
 /// # use vacro::help;
 /// help!(Arithmetic: syn::Expr {
 ///     error: "expected an arithmetic expression",

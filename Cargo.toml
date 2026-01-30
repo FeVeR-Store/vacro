@@ -25,10 +25,11 @@ members = [
   "crates/vacro-report-macro",
   "crates/vacro-report/tests/macros",
   "crates/vacro-trace",
-  "crates/vacro-trace/tests/fixture",
+  "crates/vacro-trace/tests/fixture", "tests/test-usage-facade", "tests/test-usage-standalone",
 ]
 
 [workspace.dependencies]
+proc-macro-crate = "3.4.0"
 proc-macro2 = "1.0"
 quote = "1.0"
 rust-format = { version = "0.3.4", features = ["pretty_please", "token_stream"] }

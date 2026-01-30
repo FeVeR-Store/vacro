@@ -6,7 +6,7 @@ use syn::{
     Block, ItemFn, Macro, Stmt,
 };
 
-use crate::utils::crate_name;
+use crate::utils::resolve_crate_root;
 
 pub fn report_scope_impl(_attr: TokenStream, item: TokenStream) -> TokenStream {
     // 原函数
@@ -74,7 +74,7 @@ impl TraceRewriter {
 
         if last_ident_str == "parse_quote" || last_ident_str == "parse_quote_spanned" {
             let origin_span = last.ident.span();
-            let pkg = crate_name(origin_span);
+            let pkg = resolve_crate_root(origin_span);
             let parse_quote_token = if last_ident_str == "parse_quote" {
                 self.unused_parse_quote = len == 1;
                 quote_spanned! { origin_span => parse_quote }

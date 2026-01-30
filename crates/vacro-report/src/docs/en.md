@@ -14,7 +14,7 @@ Simply decorate your function with `#[vacro_report::scope]`.
 
 Inside the scope, any usage of `parse_quote!` and `parse_quote_spanned` will be automatically instrumented. No other code changes are required.
 
-```rust,ignore
+```rust
 # use syn::{parse_quote, Expr, Token};
 # use vacro_report::scope;
 #[scope]
@@ -54,7 +54,7 @@ help!(NewTypeName: BaseType {
 
 ## Basic Usage
 
-```rust,ignore
+```rust
 # use vacro::help;
 use syn::Ident;
 
@@ -69,7 +69,7 @@ help!(MyIdent: Ident {
 
 When both the `parser` and `report` features of `vacro` are enabled, or when `vacro-report` is installed independently with the `parser` feature enabled, you can use the `example` field to provide additional support for `vacro-parser`, enabling it to generate more detailed help information.
 
-```rust,ignore
+```rust
 # use vacro::help;
 use syn::Expr;
 

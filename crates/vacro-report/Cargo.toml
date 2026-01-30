@@ -31,9 +31,7 @@ trybuild = { workspace = true }
 vacro = { path = "../../", version = "0.2.1", features = ["parser", "report"] }
 
 [features]
-default = ["standalone"]
 doc-all = ["vacro-doc-i18n/doc-all"]
 doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-en = ["vacro-doc-i18n/doc-en"]
 parser = ["vacro-report-macro/parser"]
-standalone = ["vacro-report-macro/standalone"]
