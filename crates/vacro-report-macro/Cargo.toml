@@ -25,4 +25,3 @@ vacro = { path = "../../", version = "0.2.1", features = ["parser", "report"] }
 default = ["quote"]
 parser = []
 quote = []
-standalone = []

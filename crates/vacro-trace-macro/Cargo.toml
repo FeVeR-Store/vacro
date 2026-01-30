@@ -26,4 +26,3 @@ vacro = { path = "../../", features = ["full"] }
 doc-all = ["vacro-doc-i18n/doc-all"]
 doc-cn = ["vacro-doc-i18n/doc-cn"]
 doc-en = ["vacro-doc-i18n/doc-en"]
-standalone = []
