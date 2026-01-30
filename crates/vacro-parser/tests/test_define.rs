@@ -1,5 +1,5 @@
 use quote::quote;
-use syn::{parse2, Ident, LitInt};
+use syn::{parse2, Ident, LitBool, LitInt};
 use vacro_parser::define;
 
 // 1. 基础测试：最简单的结构体定义
@@ -77,4 +77,63 @@ fn test_define_enum_generation() {
         PolyEnum::Num(n) => assert_eq!(n.base10_digits(), "123"),
         _ => panic!("Expected Num variant"),
     }
+}
+
+// 4. 关联捕获
+define!(MyRoles: {
+    #(roles*[,]: #(ident: Ident))
+});
+
+#[test]
+fn test_named_nested_list() {
+    let input = quote!({ a, b, c });
+    let res: MyRoles = parse2(input).unwrap();
+    assert_eq!(res.roles.len(), 3);
+    // Check if the inner struct is accessible and correct
+    assert_eq!(res.roles[0].ident.to_string(), "a");
+    assert_eq!(res.roles[1].ident.to_string(), "b");
+    assert_eq!(res.roles[2].ident.to_string(), "c");
+}
+
+define!(MyConfig: {
+    #(items*[,]: #(pair: #(key: Ident): #(val: LitBool)))
+});
+
+#[test]
+fn test_named_nested_complex() {
+    let input = quote!({ a: true, b: false });
+    let res: MyConfig = parse2(input).unwrap();
+    assert_eq!(res.items.len(), 2);
+
+    // Accessing nested struct fields
+    assert_eq!(res.items[0].pair.key.to_string(), "a");
+    assert!(res.items[0].pair.val.value);
+
+    assert_eq!(res.items[1].pair.key.to_string(), "b");
+    assert!(!res.items[1].pair.val.value);
+}
+
+define!(SingleWrapper: {
+    #(inner: #(val: Ident))
+});
+
+#[test]
+fn test_named_one_nested() {
+    let input = quote!({ my_val });
+    let res: SingleWrapper = parse2(input).unwrap();
+    assert_eq!(res.inner.val.to_string(), "my_val");
+}
+
+define!(Mixed: {
+    #(a: Ident)
+    #(nested: #(b: Ident) #(c: Ident))
+});
+
+#[test]
+fn test_mixed_nested() {
+    let input = quote!({ x y z });
+    let res: Mixed = parse2(input).unwrap();
+    assert_eq!(res.a.to_string(), "x");
+    assert_eq!(res.nested.b.to_string(), "y");
+    assert_eq!(res.nested.c.to_string(), "z");
 }
