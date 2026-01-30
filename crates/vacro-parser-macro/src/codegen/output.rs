@@ -49,7 +49,7 @@ pub fn generate_output(
             if *is_inline {
                 quote! { #ty, }
             } else {
-                quote! {#name: #ty,}
+                quote! { pub #name: #ty,}
             }
         },
     ));

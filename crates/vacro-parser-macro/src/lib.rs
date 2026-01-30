@@ -6,6 +6,7 @@ use crate::impls::{bind_impl, define_impl};
 pub(crate) mod ast;
 pub(crate) mod codegen;
 mod impls;
+pub(crate) mod scope_context;
 pub(crate) mod syntax;
 pub(crate) mod transform;
 mod utils;
