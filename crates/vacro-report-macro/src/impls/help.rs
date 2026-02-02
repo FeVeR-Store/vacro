@@ -9,8 +9,6 @@ use syn::{
     Ident, Token, Type,
 };
 
-use crate::utils::resolve_vacro_parser_root;
-
 pub enum HelpField {
     Help(TokenStream),
     Error(TokenStream),
@@ -140,7 +138,7 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
         error,
         help,
         #[cfg(feature = "parser")]
-        example,
+            example: example_token,
         ..
     } = parse_quote!(#input);
 
@@ -156,22 +154,12 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
         quote! {}
     };
 
-    let example_token = quote! {#example}.to_string();
-    let parser_help_impl = if example.is_empty() {
-        quote! {}
-    } else if cfg!(feature = "parser") {
-        let pkg = resolve_vacro_parser_root();
-        quote! {
-            impl #pkg::__private::CustomHelp for #alias {
-                fn custom_message() -> ::std::string::String {
-                    ::std::string::String::from(#example_token)
-                }
-            }
-        }
-    } else {
-        quote! {}
-    };
-
+    let parser_help_impl = generate_parser_help_impl(
+        #[cfg(feature = "parser")]
+        example_token,
+        #[cfg(feature = "parser")]
+        &alias,
+    );
     quote! {
         struct #alias(#ty);
 
@@ -195,5 +183,29 @@ pub fn help_impl(input: TokenStream) -> TokenStream {
                 })?))
             }
         }
+    }
+}
+
+fn generate_parser_help_impl(
+    #[cfg(feature = "parser")] example_token: TokenStream,
+    #[cfg(feature = "parser")] alias: &Ident,
+) -> TokenStream {
+    #[cfg(feature = "parser")]
+    if example_token.is_empty() {
+        quote! {}
+    } else {
+        let example_str = quote! {#example_token}.to_string();
+        let pkg = crate::utils::resolve_vacro_parser_root();
+        quote! {
+            impl #pkg::__private::CustomHelp for #alias {
+                fn custom_message() -> ::std::string::String {
+                    ::std::string::String::from(#example_str)
+                }
+            }
+        }
+    }
+    #[cfg(not(feature = "parser"))]
+    {
+        return quote! {};
     }
 }
