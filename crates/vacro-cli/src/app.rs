@@ -405,22 +405,38 @@ impl App {
         self.search_matches.clear();
         self.current_match_index = None;
 
+        // 保存当前选中的会话 ID (如果存在)，以便恢复
+        let current_session_id = self
+            .list_state
+            .selected()
+            .and_then(|idx| self.filtered_sessions.get(idx))
+            .map(|s| s.id.clone());
+
         // 恢复完整列表
         self.filtered_sessions = self.sessions.clone();
         self.filtered_log_entries = self.current_entries.clone();
         self.expanded_items.clear();
 
-        // 重置滚动条
+        // 重置详情视图滚动条
         self.detail_state.select(Some(0));
 
-        // 修正会话列表选中项
-        if !self.filtered_sessions.is_empty() {
+        // 尝试恢复会话选中状态
+        if let Some(id) = current_session_id {
+            if let Some(new_idx) = self.filtered_sessions.iter().position(|s| s.id == id) {
+                self.list_state.select(Some(new_idx));
+                // 为保险起见，重载一下以确保 current_entries 对应当前 session
+                self.load_selected_session();
+            } else if !self.filtered_sessions.is_empty() {
+                self.list_state.select(Some(0));
+                self.load_selected_session();
+            }
+        } else if !self.filtered_sessions.is_empty() {
             self.list_state.select(Some(0));
             self.load_selected_session();
         }
     }
 
-    /// 切换当前选中详情项的展开/折叠状态 (针对 Snapshot)
+    /// 切换当前选中详情项的展开/折叠状态 (针对 Snapshot 和多行 Log)
     pub fn toggle_detail_item(&mut self) {
         let (_, mapping) = crate::widgets::TraceViewer::generate_items(
             &self.filtered_log_entries,
@@ -431,7 +447,13 @@ impl App {
         if let Some(visual_idx) = self.detail_state.selected() {
             if let Some(&entry_idx) = mapping.get(visual_idx) {
                 if let Some(entry) = self.filtered_log_entries.get(entry_idx) {
-                    if let crate::data::TraceEvent::Snapshot { .. } = &entry.entry.message {
+                    let should_toggle = match &entry.entry.message {
+                        crate::data::TraceEvent::Snapshot { .. } => true,
+                        crate::data::TraceEvent::Log { message, .. } => message.contains('\n'),
+                        _ => false,
+                    };
+
+                    if should_toggle {
                         if self.expanded_items.contains(&entry_idx) {
                             self.expanded_items.remove(&entry_idx);
                         } else {

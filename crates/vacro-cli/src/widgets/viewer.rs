@@ -159,12 +159,29 @@ impl<'a> TraceViewer<'a> {
                         _ => (Color::Reset, Color::Reset, " LOG "),
                     };
 
-                    let mut line_spans = vec![Span::styled(
+                    let is_multiline = message.contains('\n');
+                    let is_expanded = expanded.contains(&entry_idx);
+
+                    let icon = if is_multiline {
+                        if is_expanded {
+                            "▼ "
+                        } else {
+                            "▶ "
+                        }
+                    } else {
+                        "  " // 占位对齐
+                    };
+
+                    let mut header_spans = vec![Span::styled(
                         format!(" {} ", time_str),
                         Style::default().fg(time_col),
                     )];
-                    // 高亮日志级别标签
-                    line_spans.extend(highlight_text(
+
+                    // 1. 渲染图标 (如果是多行)
+                    header_spans.push(Span::styled(icon, Style::default().fg(Color::DarkGray)));
+
+                    // 2. 渲染日志级别
+                    header_spans.extend(highlight_text(
                         label,
                         search_query,
                         Style::default()
@@ -173,18 +190,67 @@ impl<'a> TraceViewer<'a> {
                             .add_modifier(Modifier::BOLD),
                         highlight_style,
                     ));
-                    line_spans.push(Span::raw(" "));
+                    header_spans.push(Span::raw(" "));
 
-                    // 高亮日志内容
-                    line_spans.extend(highlight_text(
-                        message,
-                        search_query,
-                        Style::default(),
-                        highlight_style,
-                    ));
+                    // 3. 渲染内容
+                    if is_multiline {
+                        if is_expanded {
+                            let lines: Vec<&str> = message.lines().collect();
+                            if let Some(first_line) = lines.first() {
+                                header_spans.extend(highlight_text(
+                                    first_line,
+                                    search_query,
+                                    Style::default(),
+                                    highlight_style,
+                                ));
+                            }
+                            items.push(ListItem::new(Line::from(header_spans)));
+                            mapping.push(entry_idx);
 
-                    items.push(ListItem::new(Line::from(line_spans)));
-                    mapping.push(entry_idx);
+                            // 渲染剩余行
+                            for line in lines.iter().skip(1) {
+                                let mut body_spans = vec![Span::styled(
+                                    "           ", // Indent for time + badge
+                                    Style::default(),
+                                )];
+                                body_spans.extend(highlight_text(
+                                    line,
+                                    search_query,
+                                    Style::default(),
+                                    highlight_style,
+                                ));
+                                items.push(ListItem::new(Line::from(body_spans)));
+                                mapping.push(entry_idx);
+                            }
+                        } else {
+                            // 折叠状态：显示第一行 + 提示
+                            let first_line = message.lines().next().unwrap_or("");
+                            header_spans.extend(highlight_text(
+                                first_line,
+                                search_query,
+                                Style::default(),
+                                highlight_style,
+                            ));
+                            header_spans.push(Span::styled(
+                                " ... (SPACE to expand)",
+                                Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::ITALIC),
+                            ));
+                            items.push(ListItem::new(Line::from(header_spans)));
+                            mapping.push(entry_idx);
+                        }
+                    } else {
+                        // 单行：直接渲染
+                        header_spans.extend(highlight_text(
+                            message,
+                            search_query,
+                            Style::default(),
+                            highlight_style,
+                        ));
+                        items.push(ListItem::new(Line::from(header_spans)));
+                        mapping.push(entry_idx);
+                    }
                 }
                 // --- 快照事件 (代码/Diff) ---
                 TraceEvent::Snapshot { tag, code, .. } => {
