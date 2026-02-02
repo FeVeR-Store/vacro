@@ -406,7 +406,9 @@ impl App {
         self.current_match_index = None;
 
         // 保存当前选中的会话 ID (如果存在)，以便恢复
-        let current_session_id = self.list_state.selected()
+        let current_session_id = self
+            .list_state
+            .selected()
             .and_then(|idx| self.filtered_sessions.get(idx))
             .map(|s| s.id.clone());
 
@@ -425,8 +427,8 @@ impl App {
                 // 为保险起见，重载一下以确保 current_entries 对应当前 session
                 self.load_selected_session();
             } else if !self.filtered_sessions.is_empty() {
-                 self.list_state.select(Some(0));
-                 self.load_selected_session();
+                self.list_state.select(Some(0));
+                self.load_selected_session();
             }
         } else if !self.filtered_sessions.is_empty() {
             self.list_state.select(Some(0));
