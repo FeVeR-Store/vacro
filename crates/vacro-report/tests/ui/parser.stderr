@@ -1,0 +1,7 @@
+error: 此处需要一个bool字面量，接收到的是：hello, b : world!,
+       help: 尝试`true`或`false`
+
+ --> tests/ui/parser.rs:3:12
+  |
+3 |         a: hello,
+  |            ^^^^^

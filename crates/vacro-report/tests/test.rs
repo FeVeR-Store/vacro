@@ -4,4 +4,5 @@ fn ui_test() {
     test.compile_fail("tests/ui/parse_quote.rs");
     test.compile_fail("tests/ui/parse_quote_spanned.rs");
     test.compile_fail("tests/ui/help.rs");
+    test.compile_fail("tests/ui/parser.rs");
 }
