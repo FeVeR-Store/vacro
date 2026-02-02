@@ -2,6 +2,11 @@
 name = "vacro-parser-macro"
 version = "0.1.7"
 edition = "2021"
+description = "Internal macro implementation for vacro-parser."
+repository = "https://github.com/FeVeR-Store/vacro"
+license = "MIT OR Apache-2.0"
+keywords = ["internal", "macros"]
+categories = ["development-tools::procedural-macro-helpers"]
 
 [lib]
 proc-macro = true
