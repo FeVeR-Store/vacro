@@ -1,6 +1,6 @@
 [package]
 name = "vacro"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "A progressive DevX framework for building Rust procedural macros. Painless parsing, visual debugging, and robust tooling."
 documentation = "https://docs.rs/vacro"
@@ -25,7 +25,9 @@ members = [
   "crates/vacro-report-macro",
   "crates/vacro-report/tests/macros",
   "crates/vacro-trace",
-  "crates/vacro-trace/tests/fixture", "tests/test-usage-facade", "tests/test-usage-standalone",
+  "crates/vacro-trace/tests/fixture",
+  "tests/test-usage-facade",
+  "tests/test-usage-standalone",
 ]
 
 [workspace.dependencies]
@@ -40,7 +42,7 @@ trybuild = "1.0"
 
 [dependencies]
 vacro-doc-i18n = { path = "./crates/vacro-doc-i18n", version = "0.2.0" }
-vacro-parser = { path = "./crates/vacro-parser", version = "0.1.4", default-features = false, optional = true }
+vacro-parser = { path = "./crates/vacro-parser", version = "0.1.7", default-features = false, optional = true }
 vacro-report = { path = "./crates/vacro-report", version = "0.1.3", default-features = false, optional = true }
 vacro-trace = { path = "./crates/vacro-trace", version = "0.1.2", default-features = false, features = [
   "macros"
@@ -52,6 +54,7 @@ quote = { workspace = true }
 syn = { workspace = true }
 
 [features]
+default = ["full"]
 doc-all = [
   "vacro-doc-i18n/doc-all",
   "vacro-parser/doc-all",
