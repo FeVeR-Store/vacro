@@ -98,11 +98,12 @@ jobs:
           publish_crate "crates/vacro-doc-i18n" "vacro-doc-i18n"
 
           # 2. 宏实现层 (Macro Impls)
-          publish_crate "crates/vacro-parser" "vacro-parser"
+          publish_crate "crates/vacro-parser-macro" "vacro-parser-macro"
           publish_crate "crates/vacro-report-macro" "vacro-report-macro"
           publish_crate "crates/vacro-trace-macro" "vacro-trace-macro"
 
           # 3. 功能封装层 (Feature Wrappers)
+          publish_crate "crates/vacro-parser" "vacro-parser"
           publish_crate "crates/vacro-report" "vacro-report"
           publish_crate "crates/vacro-trace" "vacro-trace"
 
