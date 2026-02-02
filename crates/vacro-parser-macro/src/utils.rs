@@ -18,7 +18,7 @@ pub fn resolve_crate_root() -> TokenStream {
     }
 
     if std::env::var("CARGO_PKG_NAME").unwrap_or_default() == "vacro-parser" {
-        return quote!(crate);
+        return quote!(::vacro_parser);
     }
 
     quote!(::vacro_parser)

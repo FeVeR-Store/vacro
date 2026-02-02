@@ -1,6 +1,8 @@
 use proc_macro2::{Span, TokenStream};
 use proc_macro_crate::{crate_name, FoundCrate};
-use quote::{format_ident, quote, quote_spanned};
+#[cfg(feature = "parser")]
+use quote::quote;
+use quote::{format_ident, quote_spanned};
 
 pub fn resolve_crate_root(span: Span) -> TokenStream {
     let found_vacro = crate_name("vacro");
@@ -18,12 +20,13 @@ pub fn resolve_crate_root(span: Span) -> TokenStream {
     }
 
     if std::env::var("CARGO_PKG_NAME").unwrap_or_default() == "vacro-report" {
-        return quote_spanned!(span => crate);
+        return quote_spanned!(span => ::vacro_report);
     }
 
     quote_spanned!(span => ::vacro_report)
 }
 
+#[cfg(feature = "parser")]
 pub fn resolve_vacro_parser_root() -> TokenStream {
     let found_vacro = crate_name("vacro");
 
@@ -40,7 +43,7 @@ pub fn resolve_vacro_parser_root() -> TokenStream {
     }
 
     if std::env::var("CARGO_PKG_NAME").unwrap_or_default() == "vacro-parser" {
-        return quote!(crate);
+        return quote!(::vacro_parser);
     }
 
     quote!(::vacro_parser)

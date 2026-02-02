@@ -65,7 +65,7 @@ help!(NewTypeName: BaseType {
 ## Basic Usage
 
 ```rust
-# use vacro::help;
+# use vacro_report::help;
 use syn::Ident;
 
 help!(MyIdent: Ident {
@@ -80,7 +80,7 @@ help!(MyIdent: Ident {
 When both the `parser` and `report` features of `vacro` are enabled, or when `vacro-report` is installed independently with the `parser` feature enabled, you can use the `example` field to provide additional support for `vacro-parser`, enabling it to generate more detailed help information.
 
 ```rust
-# use vacro::help;
+# use vacro_report::help;
 use syn::Expr;
 
 help!(Arithmetic: Expr {

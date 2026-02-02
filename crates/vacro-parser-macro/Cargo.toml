@@ -14,7 +14,7 @@ syn = { workspace = true }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
 
 [dev-dependencies]
-vacro = { path = "../../", features = ["full"] }
+vacro-parser = { path = "../vacro-parser", version = "0.1" }
 
 [features]
 default = ["extra-traits"]

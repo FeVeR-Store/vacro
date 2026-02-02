@@ -44,7 +44,6 @@ fn gen_log_code(level_expr: TokenStream, args: TokenStream) -> TokenStream {
     }
 }
 
-#[cfg_attr(test, vacro::report::scope)]
 pub fn log_impl(input: TokenStream) -> Result<TokenStream> {
     let input: LogInput = syn::parse2(input)?;
     // 对于 log!(Level::Info, ...) 这种情况，level 是一个表达式

@@ -52,7 +52,7 @@ Use `bind!` to consume a portion of a `TokenStream` within existing imperative l
 
 ```rust
 use syn::{Ident, Type, Token};
-use vacro::bind;
+use vacro_parser::bind;
 
 fn parser(input: syn::parse::ParseStream) -> syn::Result<()> {
     // Parse a function signature pattern on the fly
@@ -90,20 +90,23 @@ Licensed under either of Apache License, Version 2.0 or MIT license at your opti
 You can use the `help!` macro of `vacro-report` to provide more helpful suggestions for the content. If you are using `vacro`, you only need to enable the `report` feature.
 
 ```toml
-vacro = { version: "0.2.2", features: ["parser", "report"] }
-```
+vacro_parser = { version: "0.1.7" }
+vacro_report = { version: "0.1.3", features: ["parser"] }
 
+# vacro = { version: "0.2.2", features: ["parser", "report"] }
+```
 ```rust
-use vacro::{help, define};
+use vacro_parser::define;
+use vacro_report::help;
 use syn::{Ident, LitBool};
 
-help! (Bool:
+help!(Bool:
     LitBool {
         error: "A boolean literal is required here; the received value is: {input}".
         help: "Try `true` or `false`",
         example: (true | false) // The example field is the sample field to be displayed, used when generating error messages and usage examples; it accepts a TokenStream and will directly display the content you pass in.
     }
-)
+);
 
 define!(MyRoles: {
     #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))

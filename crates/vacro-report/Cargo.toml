@@ -27,8 +27,9 @@ vacro-report-macro = { path = "../vacro-report-macro", version = "0.1.3" }
 
 [dev-dependencies]
 macros = { path = "./tests/macros" }
+syn = { workspace = true }
 trybuild = { workspace = true }
-vacro = { path = "../../", version = "0.2.1", features = ["parser", "report"] }
+vacro-parser = { path = "../vacro-parser", version = "0.1" }
 
 [features]
 doc-all = ["vacro-doc-i18n/doc-all"]

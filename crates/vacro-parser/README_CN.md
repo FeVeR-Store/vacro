@@ -25,7 +25,7 @@ vacro-parser = "0.1.7"
 
 ```rust
 use syn::{Ident, Type, GenericParam, FnArg, parse_quote, Token};
-use vacro::define;
+use vacro_parser::define;
 // 定义一个名为 MyFn 的结构体，它会自动实现 Parse trait
 vacro::define!(MyFn:
     fn
@@ -50,7 +50,7 @@ fn main() {}
 
 ```rust
 use syn::{Ident, Type, Token, Result};
-use vacro::bind;
+use vacro_parser::bind;
 fn parser(input: syn::parse::ParseStream) -> Result<()> {
     // 即时解析函数签名模式
     bind!(
@@ -87,8 +87,8 @@ Vacro 支持解析“多态”结构，即输入流中的某个位置可能是�
 
 ```rust
 use syn::{Ident, Expr, Type, LitInt};
-use vacro::define;
-vacro::define!(MyPoly:
+use vacro_parser::define;
+define!(MyPoly:
     #(data: MyEnum {
         Ident,                            // 1. 简写：匹配 Ident，生成 MyEnum::Ident(Ident)
         syn::Type,                        // 2. 简写：匹配 Type，生成 MyEnum::Type(syn::Type)
@@ -105,20 +105,24 @@ fn main() {}
 你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
 
 ```toml
-vacro = { version: "0.2.2", features: ["parser", "report"] }
+vacro_parser = { version: "0.1.7" }
+vacro_report = { version: "0.1.3", features: ["parser"] }
+
+# vacro = { version: "0.2.2", features: ["parser", "report"] }
 ```
 
 ```rust
-use vacro::{help, define};
-# use syn::{Ident, LitBool};
+use vacro_parser::define;
+use vacro_report::help;
+use syn::{Ident, LitBool};
 
-help! {Bool:
+help!(Bool:
     LitBool {
         error: "此处需要一个bool字面量，接收到的是：{input}",
         help: "尝试`true`或`false`",
         example: (true | false) // example 字段是要展示的示例字段，在生成错误信息与使用示例时使用；它接受一段TokenStream，并且将直接展示你传入的内容
     }
-}
+);
 
 define!(MyRoles: {
     #(roles*[,]: #(pair: #(name: Ident): #(enable: Bool)))

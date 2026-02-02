@@ -19,9 +19,6 @@ syn = { workspace = true }
 uuid = { version = "1.19.0", features = ["v4"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
 
-[dev-dependencies]
-vacro = { path = "../../", features = ["full"] }
-
 [features]
 doc-all = ["vacro-doc-i18n/doc-all"]
 doc-cn = ["vacro-doc-i18n/doc-cn"]

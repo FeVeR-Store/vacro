@@ -42,7 +42,7 @@ mod utils;
 ///
 /// ```rust
 /// # use syn::{Ident, Type, Token, Result};
-/// # use vacro::bind;
+/// # use vacro_parser::bind;
 /// # use proc_macro2::TokenStream;
 /// fn parser(input: TokenStream) -> Result<()> {
 ///     // 场景 1: 配合 `?` 使用 (推荐)
@@ -101,7 +101,7 @@ mod utils;
 ///
 /// ```rust
 /// # use syn::{Ident, Type, Token, Result};
-/// # use vacro::bind;
+/// # use vacro_parser::bind;
 /// # use quote::ToTokens;
 /// # use proc_macro2::TokenStream;
 /// fn parser(input: TokenStream) -> Result<()> {
@@ -164,7 +164,7 @@ pub fn bind(input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// # use syn::{Ident, Type, Token, parse::Parse, parse::ParseStream, Result};
-/// # use vacro::define;
+/// # use vacro_parser::define;
 /// # use quote::quote;
 /// # use proc_macro2::TokenStream;
 /// // 定义一个简单的常量定义结构
@@ -213,7 +213,7 @@ pub fn bind(input: TokenStream) -> TokenStream {
 ///
 /// ```rust
 /// # use syn::{Ident, Type, Token, parse::Parse, parse::ParseStream, Result};
-/// # use vacro::define;
+/// # use vacro_parser::define;
 /// # use quote::quote;
 /// # use proc_macro2::TokenStream;
 /// // Define a simple constant definition structure
