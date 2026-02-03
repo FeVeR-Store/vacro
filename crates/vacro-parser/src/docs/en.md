@@ -120,9 +120,3 @@ define!(MyRoles: {
 });
 
 ```
-
-<div class="warning">
-
-This example fails to compile. The associated capture syntax `#(pair: #(name: Ident): #(enable: BoolLit))` used here will be implemented later; see [Associated Captures](https://github.com/FeVeR-Store/vacro/issues/38)
-
-</div>

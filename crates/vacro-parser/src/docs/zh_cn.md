@@ -120,9 +120,3 @@ define!(MyRoles: {
 });
 
 ```
-
-<div class="warning">
-
-此示例不能通过编译，其中使用的关联捕获语法`#(pair: #(name: Ident): #(enable: BoolLit))`将在后续实现，参见[关联捕获](https://github.com/FeVeR-Store/vacro/issues/38)
-
-</div>
