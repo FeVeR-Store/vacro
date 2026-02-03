@@ -56,10 +56,12 @@ impl Parse for BindInput {
 
 impl Parse for DefineInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let visibility = input.parse()?;
         let name = input.parse()?;
         let _colon = input.parse()?;
         let patterns = Pattern::parse(input)?;
         Ok(DefineInput {
+            visibility,
             name,
             _colon,
             patterns,

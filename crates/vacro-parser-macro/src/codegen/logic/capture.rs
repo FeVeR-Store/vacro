@@ -77,7 +77,7 @@ impl Compiler {
                     meta: None,
                 };
                 let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
 
                 let pattern_tokens = self.compile_pattern(&patterns);
 
@@ -117,7 +117,7 @@ impl Compiler {
                     meta: None,
                 };
                 let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
 
                 let pattern_tokens = self.compile_pattern(&patterns);
 
@@ -173,7 +173,7 @@ impl Compiler {
                 let joint_token = self.compile_pattern(&patterns);
                 let captures = patterns.collect_captures();
                 let (capture_init, struct_def, struct_expr, fields) =
-                    generate_output(&captures, None);
+                    generate_output(&captures, None, None);
 
                 let assigns_err = fields.iter().map(|ident| {
                     quote! { #ident = ::std::option::Option::None; }
@@ -287,7 +287,7 @@ impl Compiler {
                 named,
                 ..
             } => {
-                let (capture_init, _, _, capture_list) = generate_output(fields, None);
+                let (capture_init, _, _, capture_list) = generate_output(fields, None, None);
                 let pattern_tokens = self.compile_pattern(pattern);
                 let enum_expr_body = capture_list.iter().collect::<Punctuated<_, Token![,]>>();
                 let enum_expr = if *named {

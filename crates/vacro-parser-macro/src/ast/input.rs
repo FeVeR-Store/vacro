@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{Ident, Local, Token};
+use syn::{Ident, Local, Token, Visibility};
 
 use crate::ast::node::Pattern;
 
@@ -14,6 +14,7 @@ pub struct BindInput {
 
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
 pub struct DefineInput {
+    pub visibility: Visibility,
     pub name: Ident,
     pub _colon: Token![:],
     pub patterns: Pattern,
