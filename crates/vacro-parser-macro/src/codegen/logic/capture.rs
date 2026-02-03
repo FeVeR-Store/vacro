@@ -47,8 +47,9 @@ impl Compiler {
                 quote! {
                     {
                         let _fork = input.fork();
-                        if ::std::result::Ok(_parsed) = _fork.parse::<#ty>() {
+                        if let ::std::result::Result::Ok(_parsed) = _fork.parse::<#ty>() {
                             #receiver ::std::option::Option::Some(_parsed);
+                            ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                         }
                     }
                 }
