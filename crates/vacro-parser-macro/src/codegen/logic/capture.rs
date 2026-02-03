@@ -322,15 +322,16 @@ impl Compiler {
             }
             EnumVariant::Capture { .. } => fmt_str.push("pattern(not impl)"),
         });
-        let fmt_str = fmt_str.join("").to_string();
+        let fmt_str = fmt_str.join(", ").to_string();
         //
         quote! {
             ::std::result::Result::Err(
                 ::syn::Error::new(
                     input.span(),
                     format!(
-                        stringify!(Expected one of: #fmt_str),
-                        #fmt_args
+                        stringify!(Expected one of: {}, get: {}),
+                        format!(#fmt_str, #fmt_args),
+                        input
                     )
                 )
             )
