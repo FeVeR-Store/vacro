@@ -43,7 +43,8 @@ impl Compiler {
                     return tokens;
                 }
                 let captures = pattern.collect_captures();
-                let (capture_init, struct_def, struct_expr, ..) = generate_output(&captures, None);
+                let (capture_init, struct_def, struct_expr, ..) =
+                    generate_output(&captures, None, None);
 
                 // 追加到 body_stream
                 body_stream.extend(quote! {
@@ -62,7 +63,8 @@ impl Compiler {
             }
             PatternKind::Capture(capture) => {
                 let captures = capture.collect_captures();
-                let (capture_init, struct_def, struct_expr, ..) = generate_output(&captures, None);
+                let (capture_init, struct_def, struct_expr, ..) =
+                    generate_output(&captures, None, None);
                 let cap_tokens = self.compile_capture(capture);
                 match &capture.edge {
                     Some(keyword) => {

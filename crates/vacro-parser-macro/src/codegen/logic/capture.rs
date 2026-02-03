@@ -47,8 +47,9 @@ impl Compiler {
                 quote! {
                     {
                         let _fork = input.fork();
-                        if ::std::result::Ok(_parsed) = _fork.parse::<#ty>() {
+                        if let ::std::result::Result::Ok(_parsed) = _fork.parse::<#ty>() {
                             #receiver ::std::option::Option::Some(_parsed);
+                            ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                         }
                     }
                 }
@@ -76,7 +77,7 @@ impl Compiler {
                     meta: None,
                 };
                 let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
 
                 let pattern_tokens = self.compile_pattern(&patterns);
 
@@ -116,7 +117,7 @@ impl Compiler {
                     meta: None,
                 };
                 let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()));
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
 
                 let pattern_tokens = self.compile_pattern(&patterns);
 
@@ -172,7 +173,7 @@ impl Compiler {
                 let joint_token = self.compile_pattern(&patterns);
                 let captures = patterns.collect_captures();
                 let (capture_init, struct_def, struct_expr, fields) =
-                    generate_output(&captures, None);
+                    generate_output(&captures, None, None);
 
                 let assigns_err = fields.iter().map(|ident| {
                     quote! { #ident = ::std::option::Option::None; }
@@ -286,7 +287,7 @@ impl Compiler {
                 named,
                 ..
             } => {
-                let (capture_init, _, _, capture_list) = generate_output(fields, None);
+                let (capture_init, _, _, capture_list) = generate_output(fields, None, None);
                 let pattern_tokens = self.compile_pattern(pattern);
                 let enum_expr_body = capture_list.iter().collect::<Punctuated<_, Token![,]>>();
                 let enum_expr = if *named {
@@ -321,15 +322,16 @@ impl Compiler {
             }
             EnumVariant::Capture { .. } => fmt_str.push("pattern(not impl)"),
         });
-        let fmt_str = fmt_str.join("").to_string();
+        let fmt_str = fmt_str.join(", ").to_string();
         //
         quote! {
             ::std::result::Result::Err(
                 ::syn::Error::new(
                     input.span(),
                     format!(
-                        stringify!(Expected one of: #fmt_str),
-                        #fmt_args
+                        stringify!(Expected one of: {}, get: {}),
+                        format!(#fmt_str, #fmt_args),
+                        input
                     )
                 )
             )

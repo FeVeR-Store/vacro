@@ -33,7 +33,7 @@ impl Compiler {
             ..
         } = &self;
 
-        let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None);
+        let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None, None);
         tokens.extend(quote! {
             #(#shared_definition)*
             #let_token #pat = {
@@ -53,7 +53,12 @@ impl Compiler {
     }
     pub fn compile_define_input(&mut self, input: &DefineInput) -> TokenStream {
         let mut tokens = TokenStream::new();
-        let DefineInput { name, patterns, .. } = input;
+        let DefineInput {
+            name,
+            patterns,
+            visibility,
+            ..
+        } = input;
 
         self.target = name.clone();
         scope_context::set_scope_ident(Some(self.get_private_scope_ident()));
@@ -69,7 +74,7 @@ impl Compiler {
         } = &self;
 
         let (capture_init, struct_def, struct_expr, _) =
-            generate_output(&captures, Some(name.clone()));
+            generate_output(&captures, Some(name.clone()), Some(visibility.clone()));
 
         tokens.extend(quote! {
             #(#shared_definition)*

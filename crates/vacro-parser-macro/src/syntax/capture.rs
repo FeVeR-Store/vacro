@@ -170,14 +170,21 @@ impl Matcher {
             // 如果是 #(...)，则解析为 Capture
             let capture = Capture::parse(input, ctx)?;
             let span = capture.span;
-            let pattern = Pattern {
-                kind: PatternKind::Capture(Box::new(capture)),
-                span,
-                meta: None,
-            };
-            Matcher {
-                kind: MatcherKind::Nested(vec![pattern]),
-                span,
+            if let MatcherKind::Enum { .. } = &capture.matcher.kind {
+                Matcher {
+                    kind: capture.matcher.kind,
+                    span,
+                }
+            } else {
+                let pattern = Pattern {
+                    kind: PatternKind::Capture(Box::new(capture)),
+                    span,
+                    meta: None,
+                };
+                Matcher {
+                    kind: MatcherKind::Nested(vec![pattern]),
+                    span,
+                }
             }
         } else if input.peek(Ident) {
             if input.peek2(token::Brace) {

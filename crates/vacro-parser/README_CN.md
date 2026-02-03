@@ -14,7 +14,7 @@
 
 ```toml
 [dependencies]
-vacro-parser = "0.1.7"
+vacro-parser = "0.1.8"
 ```
 
 ## 核心功能
@@ -105,10 +105,10 @@ fn main() {}
 你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
 
 ```toml
-vacro_parser = { version: "0.1.7" }
-vacro_report = { version: "0.1.3", features: ["parser"] }
+vacro_parser = { version = "0.1.8" }
+vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version: "0.2.2", features: ["parser", "report"] }
+# vacro = { version = "0.2.3", features = ["parser", "report"] }
 ```
 
 ```rust
@@ -129,7 +129,3 @@ define!(MyRoles: {
 });
 
 ```
-
-> ⚠️ Warning
->
-> 此示例不能通过编译，其中使用的关联捕获语法`#(pair: #(name: Ident): #(enable: BoolLit))`将在后续实现，参见[关联捕获](https://github.com/FeVeR-Store/vacro/issues/38)
