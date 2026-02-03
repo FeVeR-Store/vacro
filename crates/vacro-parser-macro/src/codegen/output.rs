@@ -130,11 +130,11 @@ mod tests {
         let (_, struct_def, _, _) = generate_output(
             &fields,
             Some(parse_quote!(MyStruct)),
-            Some(parse_quote!(pub(a::b::c))),
+            Some(parse_quote! {pub(in a::b::c)}),
         );
         let output = struct_def.to_string();
 
-        assert!(output.contains("pub ( a :: b :: c ) struct MyStruct"));
+        assert!(output.contains("pub (in a :: b :: c) struct MyStruct"));
     }
 
     #[test]
