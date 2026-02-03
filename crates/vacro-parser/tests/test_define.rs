@@ -1,8 +1,8 @@
-use quote::{quote, ToTokens};
+use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, ItemFn, LitBool, LitInt, Member, Pat,
-    Receiver, ReturnType, Stmt, Token, Type,
+    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member, Receiver,
+    ReturnType, Stmt, Token, Type,
 };
 use vacro_parser::define;
 
@@ -142,23 +142,12 @@ fn test_mixed_nested() {
     assert_eq!(res.nested.c.to_string(), "z");
 }
 
-define!(Method:
+define!(pub Method:
     #(asyncness?: Token![async])
     #(unsafety?: Token![unsafe])
     #(name: Ident)#(?: <#(generic*[,]: Generics)>)(#(inputs*[,]: FnArg))#(output: ReturnType)#(block: Block)
 );
-
-#[test]
-fn test_method() {
-    let input = quote! {
-        async get_name(&self) -> String {
-                self.name
-        }
-    };
-    Method::parse.parse2(input).unwrap();
-}
-
-define!(Property:
+define!(pub Property:
     pub #(name: Ident): #(ty: Type) #(?: = #(default: Expr))
 );
 
@@ -234,7 +223,7 @@ fn test_device_config() {
         } else {
             panic!("fn output should be `String`");
         }
-        if let Some(Stmt::Expr(expr, None)) = block.stmts.get(0) {
+        if let Some(Stmt::Expr(expr, None)) = block.stmts.first() {
             assert_eq!(quote! {#expr}.to_string(), "self . name");
         } else {
             panic!("fn body should be `self.name`")
