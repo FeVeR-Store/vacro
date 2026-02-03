@@ -1,5 +1,9 @@
-use quote::quote;
-use syn::{parse2, Ident, LitBool, LitInt};
+use quote::{quote, ToTokens};
+use syn::{
+    parse::{Parse, Parser},
+    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, ItemFn, LitBool, LitInt, Member, Pat,
+    Receiver, ReturnType, Stmt, Token, Type,
+};
 use vacro_parser::define;
 
 // 1. 基础测试：最简单的结构体定义
@@ -136,4 +140,117 @@ fn test_mixed_nested() {
     assert_eq!(res.a.to_string(), "x");
     assert_eq!(res.nested.b.to_string(), "y");
     assert_eq!(res.nested.c.to_string(), "z");
+}
+
+define!(Method:
+    #(asyncness?: Token![async])
+    #(unsafety?: Token![unsafe])
+    #(name: Ident)#(?: <#(generic*[,]: Generics)>)(#(inputs*[,]: FnArg))#(output: ReturnType)#(block: Block)
+);
+
+#[test]
+fn test_method() {
+    let input = quote! {
+        async get_name(&self) -> String {
+                self.name
+        }
+    };
+    Method::parse.parse2(input).unwrap();
+}
+
+define!(Property:
+    pub #(name: Ident): #(ty: Type) #(?: = #(default: Expr))
+);
+
+define!(DeviceCofig:
+    #(name: Ident) {
+        #(config_items*[,]: Config {
+            FieldValue,
+            Method,
+            Property
+        })
+    }
+);
+
+#[test]
+fn test_device_config() {
+    let input = quote! {
+        DeviceA {
+            transport: LocalSocket,
+            batch,
+            async get_name(&self) -> String {
+                self.name
+            },
+            pub name: String = "device-a".to_string()
+        }
+    };
+    let device_config = DeviceCofig::parse.parse2(input).unwrap();
+    assert_eq!(device_config.name.to_string(), "DeviceA");
+    if let Config::FieldValue(FieldValue {
+        member: Member::Named(named),
+        expr,
+        ..
+    }) = device_config.config_items.get(0).unwrap()
+    {
+        assert_eq!(named.to_string(), "transport");
+        assert_eq!(quote! {#expr}.to_string(), "LocalSocket");
+    } else {
+        panic!("1st field should be FieldValue")
+    }
+
+    if let Config::FieldValue(FieldValue {
+        member: Member::Named(named),
+        colon_token: None,
+        ..
+    }) = device_config.config_items.get(1).unwrap()
+    {
+        assert_eq!(named.to_string(), "batch");
+    } else {
+        panic!("2nd field should be FieldValue without colon_token")
+    }
+
+    if let Config::Method(Method {
+        asyncness: Some(_),
+        unsafety: None,
+        name,
+        generic: None,
+        inputs,
+        output,
+        block,
+    }) = device_config.config_items.get(2).unwrap()
+    {
+        assert_eq!(name.to_string(), "get_name");
+        let FnArg::Receiver(Receiver {
+            reference: Some(_),
+            mutability: None,
+            colon_token: None,
+            ..
+        }) = inputs.get(0).unwrap()
+        else {
+            panic!("fn input should be receiver `&self`");
+        };
+        if let ReturnType::Type(_, ty) = output {
+            assert_eq!(quote! {#ty}.to_string(), "String");
+        } else {
+            panic!("fn output should be `String`");
+        }
+        if let Some(Stmt::Expr(expr, None)) = block.stmts.get(0) {
+            assert_eq!(quote! {#expr}.to_string(), "self . name");
+        } else {
+            panic!("fn body should be `self.name`")
+        }
+    } else {
+        panic!("3rd field should be Method")
+    }
+
+    if let Config::Property(Property { name, ty, default }) =
+        device_config.config_items.get(3).unwrap()
+    {
+        assert_eq!(name.to_string(), "name");
+        assert_eq!(quote! {#ty}.to_string(), "String");
+        let Some(expr) = default else {
+            panic!(r#"default value should be `"device-a".to_string()`"#);
+        };
+        assert_eq!(quote! {#expr}.to_string(), r#""device-a" . to_string ()"#)
+    }
 }
