@@ -18,6 +18,7 @@ impl Compiler {
                 #[allow(non_snake_case)]
                 pub mod #mod_ident {
                     use super::*;
+                    use ::syn::parse::Parse;
                     #item
                 }
             };

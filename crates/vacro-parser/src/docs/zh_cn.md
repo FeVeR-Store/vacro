@@ -96,7 +96,7 @@ define!(MyPoly:
 你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
 
 ```toml
-vacro_parser = { version = "0.1.8" }
+vacro_parser = { version = "0.1.9" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
 # vacro = { version = "0.2.3", features = ["parser", "report"] }

@@ -14,7 +14,8 @@ use crate::{
         keyword::Keyword,
         node::{Pattern, PatternKind},
     },
-    syntax::context::{CaptureMode, ParseContext},
+    scope_context::next_inline_index,
+    syntax::context::ParseContext,
 };
 
 /// 捕获 #(...)
@@ -50,29 +51,12 @@ impl Capture {
         } else if lookahead.peek(Ident) || lookahead.peek(Token![@]) {
             // 具名捕获 <name: Capture> 与 行内捕获 <@: Capture> 及变体
 
-            let i = ctx.inline_counter;
             let binder = if lookahead.peek(Ident) {
                 let ident: Ident = content.parse()?;
-                // 如果是行内捕获，那么报错
-                if ctx.capture_mode == CaptureMode::Inline {
-                    return Err(syn::Error::new(
-                        ident.span(),
-                        "unexpected named capture; previous captures were inline",
-                    ));
-                }
-                ctx.capture_mode = CaptureMode::Named;
                 Binder::Named(ident)
             } else {
                 let _at = content.parse::<Token![@]>()?;
-                // 如果是命名捕获，那么报错
-                if ctx.capture_mode == CaptureMode::Named {
-                    return Err(syn::Error::new(
-                        _at.span(),
-                        "unexpected inline capture; previous captures were named",
-                    ));
-                }
-                ctx.capture_mode = CaptureMode::Inline;
-                ctx.inline_counter += 1;
+                let i = next_inline_index();
                 Binder::Inline(i)
             };
             let mut quantity = Quantity::One;

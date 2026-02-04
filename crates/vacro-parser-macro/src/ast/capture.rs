@@ -1,7 +1,7 @@
 use proc_macro2::Span;
 use syn::{
     token::{self},
-    Ident, Token, Type,
+    Ident, LitInt, Token, Type,
 };
 
 use crate::ast::{keyword::Keyword, node::Pattern};
@@ -150,22 +150,40 @@ impl Matcher {
             }
 
             MatcherKind::Nested(children) => {
-                if let Binder::Named(ident) = binder {
-                    let type_name = quote::format_ident!("{}_Item", ident);
-                    let ty = if let Some(scope) = crate::scope_context::get_scope_ident() {
-                        syn::parse_quote!(#scope::#type_name)
-                    } else {
-                        syn::parse_quote!(#type_name)
-                    };
-                    vec![FieldDef {
-                        name: ident.clone(),
-                        ty,
-                        is_optional: false,
-                        is_inline: false,
-                    }]
-                } else {
-                    // 处理嵌套节点：递归收集所有子 Pattern 的字段
-                    children.iter().flat_map(|p| p.collect_captures()).collect()
+                match binder {
+                    Binder::Named(ident) => {
+                        let type_name = quote::format_ident!("{}_Item", ident);
+                        let ty = if let Some(scope) = crate::scope_context::get_scope_ident() {
+                            syn::parse_quote!(#scope::#type_name)
+                        } else {
+                            syn::parse_quote!(#type_name)
+                        };
+                        vec![FieldDef {
+                            name: ident.clone(),
+                            ty,
+                            is_optional: false,
+                            is_inline: false,
+                        }]
+                    }
+                    Binder::Inline(idx) => {
+                        let ident = LitInt::new(&idx.to_string(), Span::call_site());
+                        let type_name = quote::format_ident!("_{ident}");
+                        let ty = if let Some(scope) = crate::scope_context::get_scope_ident() {
+                            syn::parse_quote!(#scope::#type_name)
+                        } else {
+                            syn::parse_quote!(#type_name)
+                        };
+                        vec![FieldDef {
+                            name: type_name,
+                            ty,
+                            is_optional: false,
+                            is_inline: true,
+                        }]
+                    }
+                    Binder::Anonymous => {
+                        // 处理嵌套节点：递归收集所有子 Pattern 的字段
+                        children.iter().flat_map(|p| p.collect_captures()).collect()
+                    }
                 }
             }
         }
@@ -195,6 +213,7 @@ mod tests {
     use crate::{
         ast::{keyword::Keyword, node::PatternKind},
         codegen::logic::Compiler,
+        scope_context::reset_inline_counter,
         syntax::context::ParseContext,
     };
 
@@ -521,7 +540,7 @@ mod tests {
             }
             _ => panic!("Expected EnumVariant::Capture"),
         }
-
+        reset_inline_counter();
         // 语法 #(args: EnumName { Ident, Expr: #(@: Ident): #(@: Expr) })
         let input = quote! {#(args: Enum { FnArg: #(@: Ident): #(@: Type), WithDefault: #(@: Ident) = #(@: Expr) })};
         let result = parse_capture(input, ctx).unwrap();
@@ -579,13 +598,13 @@ mod tests {
                     &vec![
                         FieldDef {
                             ty: parse_quote!(Ident),
-                            name: parse_quote!(_0),
+                            name: parse_quote!(_2),
                             is_inline: true,
                             is_optional: false,
                         },
                         FieldDef {
                             ty: parse_quote!(Expr),
-                            name: parse_quote!(_1),
+                            name: parse_quote!(_3),
                             is_inline: true,
                             is_optional: false,
                         },
@@ -595,6 +614,7 @@ mod tests {
             _ => panic!("Expected EnumVariant::Capture"),
         }
 
+        reset_inline_counter();
         // 混合语法
         let input = quote! {#(args: Enum {
             syn::Ident,
@@ -711,30 +731,6 @@ mod tests {
         let tokens_iter = compiler.compile_capture(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));
-    }
-
-    #[test]
-    fn test_error_mixed_inline_and_named() {
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! {#(named: Ident)};
-        parse_capture(input, ctx).unwrap();
-        let input = quote! {#(@: Ident)};
-        let err = parse_capture(input, ctx).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("unexpected inline capture; previous captures were named"));
-
-        // 重置
-        let ctx = &mut ParseContext::default();
-
-        let input = quote! {#(@: Ident)};
-        parse_capture(input, ctx).unwrap();
-        let input = quote! {#(named: Ident)};
-        let err = parse_capture(input, ctx).unwrap_err();
-        assert!(err
-            .to_string()
-            .contains("unexpected named capture; previous captures were inline"));
     }
 
     #[test]
