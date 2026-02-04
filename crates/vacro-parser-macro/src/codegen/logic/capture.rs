@@ -1,6 +1,6 @@
-use proc_macro2::{Delimiter, TokenStream};
-use quote::{format_ident, quote};
-use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, Token, Type};
+use proc_macro2::{Delimiter, Span, TokenStream};
+use quote::{format_ident, quote, ToTokens};
+use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, LitInt, Token, Type};
 
 use crate::{
     ast::{
@@ -85,8 +85,14 @@ impl Compiler {
                     #[allow(non_camel_case_types)]
                     pub #struct_def
                 });
+                let parse_trait = format_ident!("_{item_name}_Parse");
                 self.define_invisible_item(parse_quote! {
-                    impl ::syn::parse::Parse for #item_name {
+                    pub trait #parse_trait {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
+                    }
+                });
+                self.define_invisible_item(parse_quote! {
+                    impl #parse_trait for #item_name {
                         fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
                             trait _Parse: ::syn::parse::Parse {}
                             #capture_init
@@ -97,11 +103,7 @@ impl Compiler {
                 });
 
                 quote! {
-                    {
-                        #[allow(non_local_definitions)]
-                        impl _Parse for #item_name {}
-                        #receiver input.parse_terminated(#item_name::parse, #separator)?;
-                    }
+                    #receiver input.parse_terminated(#item_name::parse, #separator)?;
                 }
             }
             (Binder::Named(name), Quantity::One, MatcherKind::Nested(_patterns)) => {
@@ -178,8 +180,14 @@ impl Compiler {
                 let assigns_err = fields.iter().map(|ident| {
                     quote! { #ident = ::std::option::Option::None; }
                 });
-                let assigns_ok = fields.iter().map(|ident| {
-                    quote! { #ident = ::std::option::Option::Some(output.#ident); }
+                let assigns_ok = captures.iter().enumerate().map(|(i, cap)| {
+                    let ident = &fields[i];
+                    let access = if cap.is_inline {
+                        &LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+                    } else {
+                        &quote! {#ident}
+                    };
+                    quote! { #ident = ::std::option::Option::Some(output.#access); }
                 });
 
                 quote! {
@@ -200,7 +208,114 @@ impl Compiler {
                     let _ = _parser(input);
                 }
             }
-            _ => quote! {},
+            (Binder::Inline(inline), Quantity::Optional, MatcherKind::Nested(_patterns)) => {
+                let item_name = format_ident!("_{inline}");
+
+                let optimized_list = inject_lookahead(_patterns.clone());
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
+                };
+
+                let (capture_init, struct_def, struct_expr, _) =
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
+
+                let pattern_tokens = self.compile_pattern(&patterns);
+
+                self.define_invisible_item(parse_quote! {
+                    #[allow(non_camel_case_types)]
+                    pub #struct_def
+                });
+                let parse_trait = format_ident!("_{item_name}_Parse");
+                self.define_invisible_item(parse_quote! {
+                    pub trait #parse_trait {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
+                    }
+                });
+                self.define_invisible_item(parse_quote! {
+                    impl #parse_trait for #item_name {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                            #capture_init
+                            #pattern_tokens
+                            ::std::result::Result::Ok(#struct_expr)
+                        }
+                    }
+                });
+                let ty: Type = if let Some(scope) = crate::scope_context::get_scope_ident() {
+                    syn::parse_quote!(#scope::#item_name)
+                } else {
+                    syn::parse_quote!(#item_name)
+                };
+                quote! {
+                    #receiver match #ty::parse(input) {
+                        ::std::result::Result::Ok(output) => {
+                            ::std::option::Option::Some(output)
+                        }
+                        ::std::result::Result::Err(_) => {
+                            ::std::option::Option::None
+                        }
+
+                    }
+                }
+            }
+            (Binder::Inline(inline), Quantity::One, MatcherKind::Nested(_patterns)) => {
+                let item_name = format_ident!("_{inline}");
+
+                let optimized_list = inject_lookahead(_patterns.clone());
+                let patterns = Pattern {
+                    kind: PatternKind::Group {
+                        delimiter: Delimiter::None,
+                        children: optimized_list,
+                    },
+                    span: *span,
+                    meta: None,
+                };
+
+                let (capture_init, struct_def, struct_expr, _) =
+                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
+
+                let pattern_tokens = self.compile_pattern(&patterns);
+
+                self.define_invisible_item(parse_quote! {
+                    #[allow(non_camel_case_types)]
+                    pub #struct_def
+                });
+                let parse_trait = format_ident!("_{item_name}_Parse");
+                self.define_invisible_item(parse_quote! {
+                    pub trait #parse_trait {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
+                    }
+                });
+                self.define_invisible_item(parse_quote! {
+                    impl #parse_trait for #item_name {
+                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                            #capture_init
+                            #pattern_tokens
+                            ::std::result::Result::Ok(#struct_expr)
+                        }
+                    }
+                });
+                let ty: Type = if let Some(scope) = crate::scope_context::get_scope_ident() {
+                    syn::parse_quote!(#scope::#item_name)
+                } else {
+                    syn::parse_quote!(#item_name)
+                };
+                quote! {
+                    #receiver #ty::parse(input)?;
+                }
+            }
+            (binder, quantity, matcher) => {
+                todo!(
+                    "unhandled branch: {:?}, {:?}, {:?}",
+                    binder,
+                    quantity,
+                    matcher
+                )
+            }
         };
         tokens.extend(t);
         tokens
