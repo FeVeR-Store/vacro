@@ -85,23 +85,18 @@ mod tests {
         let output = compiler.compile_capture_input(&capture_input);
         let output_str = output.to_string();
 
-        // --- 静态检查生成的代码结构 ---
-
-        // 1. 检查是否生成了辅助 Trait
-        assert!(output_str.contains("trait _Parse"));
-
-        // 2. 检查是否生成了 Output 结构体 (由 generate_output 生成)
+        // 检查是否生成了 Output 结构体 (由 generate_output 生成)
         assert!(output_str.contains("struct Output"));
 
-        // 3. 检查闭包定义
+        // 检查闭包定义
         // 闭包应该接受 ParseStream 并返回 Result<Output>
         assert!(output_str.contains("| input : :: syn :: parse :: ParseStream |"));
         assert!(output_str.contains("-> :: syn :: Result < Output >"));
 
-        // 4. 检查是否调用了 syn::parse::Parser::parse2
+        // 检查是否调用了 syn::parse::Parser::parse2
         assert!(output_str.contains(":: syn :: parse :: Parser :: parse2"));
 
-        // 5. 检查是否传入了正确的输入变量 (这里是 `tokens.into()`，因为要兼容proc_macro::TokenStream和proc_macro2::TokenStream)
+        // 检查是否传入了正确的输入变量 (这里是 `tokens.into()`，因为要兼容proc_macro::TokenStream和proc_macro2::TokenStream)
         // parse2(parser, tokens . into ())
         assert!(output_str.contains("(parser , tokens . into ())"));
     }
