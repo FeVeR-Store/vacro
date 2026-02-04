@@ -1,8 +1,8 @@
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member, Receiver,
-    ReturnType, Stmt, Token, Type,
+    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member, PatType,
+    Receiver, ReturnType, Stmt, Token, Type,
 };
 use vacro_parser::define;
 
@@ -242,4 +242,78 @@ fn test_device_config() {
         };
         assert_eq!(quote! {#expr}.to_string(), r#""device-a" . to_string ()"#)
     }
+}
+
+define!(TransportInput:
+    #(name: Ident)<#(adapter: Ident)>(#(args*[,]: PatType)) {
+        #(fields*[,]: #(@: Ident) #(@?: :#(@: Type) #(?: = #(@: Expr))))
+    }
+);
+
+#[test]
+fn test_transport_input() {
+    let input = quote! {
+        TransportA<Adapter>(name: String) {
+            name,
+            version: i32,
+            description: String = "transport-a"
+        }
+    };
+    let transport_input = TransportInput::parse.parse2(input).unwrap();
+    assert_eq!(transport_input.name.to_string(), "TransportA");
+    assert_eq!(transport_input.adapter.to_string(), "Adapter");
+
+    let PatType { pat, ty, .. } = &transport_input.args[0];
+    assert_eq!(quote! {#pat}.to_string(), "name");
+    assert_eq!(quote! {#ty}.to_string(), "String");
+
+    if let Some((ident, None)) = transport_input.fields.get(0) {
+        assert_eq!(ident.to_string(), "name");
+    } else {
+        panic!("1st field should be `name`");
+    }
+    if let Some((ident, Some((ty, None)))) = transport_input.fields.get(1) {
+        assert_eq!(ident.to_string(), "version");
+        assert_eq!(quote! {#ty}.to_string(), "i32");
+    } else {
+        panic!("2nd field should be `version: i32`");
+    }
+    if let Some((ident, Some((ty, Some(default_val))))) = transport_input.fields.get(2) {
+        assert_eq!(ident.to_string(), "description");
+        assert_eq!(quote! {#ty}.to_string(), "String");
+        assert_eq!(quote! {#default_val}.to_string(), r#""transport-a""#);
+    } else {
+        panic!(r#"3rd field should be `description: String = "transport-a"`"#);
+    }
+}
+
+define!(BacktrackTestParser:
+    #(?: #(syn::Ident) #(syn::Token![,]))
+    #(target_ident: syn::Ident) #(syn::Token![;])
+);
+
+#[test]
+fn test_anonymous_optional_backtracking() {
+    use syn::parse::Parser;
+    let input_backtrack = quote! {
+        Target;
+    };
+
+    let result = BacktrackTestParser::parse.parse2(input_backtrack);
+
+    match result {
+        Ok(output) => {
+            assert_eq!(output.target_ident.to_string(), "Target",);
+        }
+        Err(e) => {
+            panic!("Unexpected cursor position, error: {}", e);
+        }
+    }
+
+    let input_full = quote! {
+        Prefix, Target;
+    };
+
+    let result_full = BacktrackTestParser::parse.parse2(input_full).unwrap();
+    assert_eq!(result_full.target_ident.to_string(), "Target");
 }
