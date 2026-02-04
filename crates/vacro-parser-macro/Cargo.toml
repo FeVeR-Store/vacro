@@ -1,6 +1,6 @@
 [package]
 name = "vacro-parser-macro"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "Internal macro implementation for vacro-parser."
 repository = "https://github.com/FeVeR-Store/vacro"

@@ -1,6 +1,6 @@
 [package]
 name = "vacro-parser"
-version = "0.1.8"
+version = "0.1.9"
 edition = "2021"
 description = "A declarative parsing library for Rust procedural macros, simplifying input handling."
 documentation = "https://docs.rs/vacro-parser"
@@ -17,7 +17,7 @@ rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 [dependencies]
 proc-macro2 = { workspace = true }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
-vacro-parser-macro = { path = "../vacro-parser-macro", version = "0.1.8" }
+vacro-parser-macro = { path = "../vacro-parser-macro", version = "0.1.9" }
 
 [dev-dependencies]
 quote = { workspace = true }
