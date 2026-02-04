@@ -1,6 +1,6 @@
 use proc_macro2::{Delimiter, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, LitInt, Token, Type};
+use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, Ident, LitInt, Token, Type};
 
 use crate::{
     ast::{
@@ -22,303 +22,228 @@ impl Compiler {
             span,
             ..
         } = capture;
-        let receiver = match &binder {
-            Binder::Named(ident) => {
-                quote! {#ident = }
+
+        // 1. 生成接收变量的代码 (e.g., `let ident = ...`)
+        let receiver = self.compile_binder_receiver(binder);
+
+        // 2. 处理 Anonymous Binder
+        if let Binder::Anonymous = binder {
+            let t = match (quantity, &matcher.kind) {
+                (Quantity::One, MatcherKind::Nested(patterns)) => {
+                    let optimized_list = inject_lookahead(patterns.clone());
+                    let patterns = Pattern {
+                        kind: PatternKind::Group {
+                            delimiter: Delimiter::None,
+                            children: optimized_list,
+                        },
+                        span: *span,
+                        meta: None,
+                    };
+                    self.compile_pattern(&patterns)
+                }
+                (Quantity::Optional, MatcherKind::Nested(patterns)) => {
+                    self.compile_anonymous_optional_nested(patterns, span)
+                }
+                // 如果有 Anonymous + Many 或其他情况，可以在此补充
+                _ => self.compile_general_matcher(binder, quantity, matcher, span, &receiver),
+            };
+            tokens.extend(t);
+            return tokens;
+        }
+
+        // 3. 通用处理逻辑 (Named, Inline, 以及非 Nested 的 Anonymous)
+        // 这些情况都可以归结为：解析一个具体的类型 T (Ty)
+        let t = self.compile_general_matcher(binder, quantity, matcher, span, &receiver);
+        tokens.extend(t);
+        tokens
+    }
+
+    /// 处理通用的解析逻辑：先确定要解析的类型，再根据数量(Quantity)生成调用代码
+    fn compile_general_matcher(
+        &mut self,
+        binder: &Binder,
+        quantity: &Quantity,
+        matcher: &Matcher,
+        span: &Span,
+        receiver: &TokenStream,
+    ) -> TokenStream {
+        // A. 获取要解析的目标类型 (Type)
+        let (ty, is_scoped) = match &matcher.kind {
+            MatcherKind::Enum { .. } | MatcherKind::SynType(_) => {
+                (self.compile_matcher(matcher), false)
             }
-            Binder::Inline(i) => {
-                let id = format_ident!("_{}", i.to_string());
-                quote! {#id = }
+            MatcherKind::Nested(patterns) => {
+                // 根据 Binder 类型生成结构体名称
+                let struct_ident = match binder {
+                    Binder::Named(name) => format_ident!("{}_Item", name),
+                    Binder::Inline(inline) => format_ident!("_{}", inline),
+                    _ => format_ident!("_Anon_Item"), // Fallback，通常不会走到这里
+                };
+                // 生成嵌套结构体并返回其类型
+                (
+                    self.define_nested_parser(&struct_ident, patterns, *span),
+                    true,
+                )
             }
-            _ => quote! {},
         };
 
-        let t = match (binder, quantity, &matcher.kind) {
-            (_, Quantity::One, MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
-                let ty = self.compile_matcher(matcher);
+        let ty = if is_scoped {
+            quote! {<#ty>}
+        } else {
+            quote! {<#ty as ::syn::parse::Parse>}
+        };
+        // B. 根据数量 (Quantity) 生成解析动作
+        match quantity {
+            Quantity::One => {
                 quote! {
-                    {
-                        #receiver input.parse::<#ty>()?;
-                    }
+                    #receiver #ty::parse(&input)?;
                 }
             }
-            (_, Quantity::Optional, MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
-                let ty = self.compile_matcher(matcher);
+            Quantity::Optional => {
                 quote! {
                     {
                         let _fork = input.fork();
-                        if let ::std::result::Result::Ok(_parsed) = _fork.parse::<#ty>() {
+                        if let ::std::result::Result::Ok(_parsed) = #ty::parse(&_fork) {
                             #receiver ::std::option::Option::Some(_parsed);
                             ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                         }
                     }
                 }
             }
-            (_, Quantity::Many(separator), MatcherKind::Enum { .. } | MatcherKind::SynType(_)) => {
-                let ty = self.compile_matcher(matcher);
+            Quantity::Many(separator) => {
                 quote! {
                     {
-                        #[allow(non_local_definitions)]
-                        impl _Parse for #ty {}
                         #receiver input.parse_terminated(#ty::parse, #separator)?;
                     }
                 }
             }
-            (Binder::Named(name), Quantity::Many(separator), MatcherKind::Nested(_patterns)) => {
-                let item_name = format_ident!("{}_Item", name);
+        }
+    }
 
-                let optimized_list = inject_lookahead(_patterns.clone());
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-                let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
-
-                let pattern_tokens = self.compile_pattern(&patterns);
-
-                self.define_invisible_item(parse_quote! {
-                    #[allow(non_camel_case_types)]
-                    pub #struct_def
-                });
-                let parse_trait = format_ident!("_{item_name}_Parse");
-                self.define_invisible_item(parse_quote! {
-                    pub trait #parse_trait {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
-                    }
-                });
-                self.define_invisible_item(parse_quote! {
-                    impl #parse_trait for #item_name {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
-                            trait _Parse: ::syn::parse::Parse {}
-                            #capture_init
-                            #pattern_tokens
-                            ::std::result::Result::Ok(#struct_expr)
-                        }
-                    }
-                });
-
-                quote! {
-                    #receiver input.parse_terminated(#item_name::parse, #separator)?;
-                }
-            }
-            (Binder::Named(name), Quantity::One, MatcherKind::Nested(_patterns)) => {
-                let item_name = format_ident!("{}_Item", name);
-
-                let optimized_list = inject_lookahead(_patterns.clone());
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-                let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
-
-                let pattern_tokens = self.compile_pattern(&patterns);
-
-                self.define_invisible_item(parse_quote! {
-                    #[allow(non_camel_case_types)]
-                    pub #struct_def
-                });
-                self.define_invisible_item(parse_quote! {
-                    impl ::syn::parse::Parse for #item_name {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
-                            trait _Parse: ::syn::parse::Parse {}
-                            #capture_init
-                            #pattern_tokens
-                            ::std::result::Result::Ok(#struct_expr)
-                        }
-                    }
-                });
-
-                quote! {
-                    {
-                         #receiver input.parse::<#item_name>()?;
-                    }
-                }
-            }
-            (Binder::Anonymous, Quantity::One, MatcherKind::Nested(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.clone());
-
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-                let pattern_tokens = self.compile_pattern(&patterns);
-                quote! {
-                    #pattern_tokens
-                }
-            }
-            (Binder::Anonymous, Quantity::Optional, MatcherKind::Nested(_patterns)) => {
-                let optimized_list = inject_lookahead(_patterns.clone());
-
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-
-                let joint_token = self.compile_pattern(&patterns);
-                let captures = patterns.collect_captures();
-                let (capture_init, struct_def, struct_expr, fields) =
-                    generate_output(&captures, None, None);
-
-                let assigns_err = fields.iter().map(|ident| {
-                    quote! { #ident = ::std::option::Option::None; }
-                });
-                let assigns_ok = captures.iter().enumerate().map(|(i, cap)| {
-                    let ident = &fields[i];
-                    let access = if cap.is_inline {
-                        &LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
-                    } else {
-                        &quote! {#ident}
-                    };
-                    quote! { #ident = ::std::option::Option::Some(output.#access); }
-                });
-
-                quote! {
-                    #struct_def
-                    let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
-                        #capture_init
-                        #joint_token
-                        ::std::result::Result::Ok(#struct_expr)
-                    };
-                    match _parser(input) {
-                        ::std::result::Result::Ok(output) => {
-                            #(#assigns_ok)*
-                        }
-                        ::std::result::Result::Err(_) => {
-                            #(#assigns_err)*
-                        }
-                    }
-                    let _ = _parser(input);
-                }
-            }
-            (Binder::Inline(inline), Quantity::Optional, MatcherKind::Nested(_patterns)) => {
-                let item_name = format_ident!("_{inline}");
-
-                let optimized_list = inject_lookahead(_patterns.clone());
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-
-                let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
-
-                let pattern_tokens = self.compile_pattern(&patterns);
-
-                self.define_invisible_item(parse_quote! {
-                    #[allow(non_camel_case_types)]
-                    pub #struct_def
-                });
-                let parse_trait = format_ident!("_{item_name}_Parse");
-                self.define_invisible_item(parse_quote! {
-                    pub trait #parse_trait {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
-                    }
-                });
-                self.define_invisible_item(parse_quote! {
-                    impl #parse_trait for #item_name {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
-                            #capture_init
-                            #pattern_tokens
-                            ::std::result::Result::Ok(#struct_expr)
-                        }
-                    }
-                });
-                let ty: Type = if let Some(scope) = crate::scope_context::get_scope_ident() {
-                    syn::parse_quote!(#scope::#item_name)
-                } else {
-                    syn::parse_quote!(#item_name)
-                };
-                quote! {
-                    #receiver match #ty::parse(input) {
-                        ::std::result::Result::Ok(output) => {
-                            ::std::option::Option::Some(output)
-                        }
-                        ::std::result::Result::Err(_) => {
-                            ::std::option::Option::None
-                        }
-
-                    }
-                }
-            }
-            (Binder::Inline(inline), Quantity::One, MatcherKind::Nested(_patterns)) => {
-                let item_name = format_ident!("_{inline}");
-
-                let optimized_list = inject_lookahead(_patterns.clone());
-                let patterns = Pattern {
-                    kind: PatternKind::Group {
-                        delimiter: Delimiter::None,
-                        children: optimized_list,
-                    },
-                    span: *span,
-                    meta: None,
-                };
-
-                let (capture_init, struct_def, struct_expr, _) =
-                    generate_output(&patterns.collect_captures(), Some(item_name.clone()), None);
-
-                let pattern_tokens = self.compile_pattern(&patterns);
-
-                self.define_invisible_item(parse_quote! {
-                    #[allow(non_camel_case_types)]
-                    pub #struct_def
-                });
-                let parse_trait = format_ident!("_{item_name}_Parse");
-                self.define_invisible_item(parse_quote! {
-                    pub trait #parse_trait {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
-                    }
-                });
-                self.define_invisible_item(parse_quote! {
-                    impl #parse_trait for #item_name {
-                        fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
-                            #capture_init
-                            #pattern_tokens
-                            ::std::result::Result::Ok(#struct_expr)
-                        }
-                    }
-                });
-                let ty: Type = if let Some(scope) = crate::scope_context::get_scope_ident() {
-                    syn::parse_quote!(#scope::#item_name)
-                } else {
-                    syn::parse_quote!(#item_name)
-                };
-                quote! {
-                    #receiver #ty::parse(input)?;
-                }
-            }
-            (binder, quantity, matcher) => {
-                todo!(
-                    "unhandled branch: {:?}, {:?}, {:?}",
-                    binder,
-                    quantity,
-                    matcher
-                )
-            }
+    /// 定义嵌套的 Struct 及其 Parse 实现，并返回该 Struct 的类型
+    fn define_nested_parser(
+        &mut self,
+        item_name: &Ident,
+        patterns: &[Pattern],
+        span: Span,
+    ) -> TokenStream {
+        let optimized_list = inject_lookahead(patterns.to_vec());
+        let patterns_group = Pattern {
+            kind: PatternKind::Group {
+                delimiter: Delimiter::None,
+                children: optimized_list,
+            },
+            span,
+            meta: None,
         };
-        tokens.extend(t);
-        tokens
+
+        let (capture_init, struct_def, struct_expr, _) = generate_output(
+            &patterns_group.collect_captures(),
+            Some(item_name.clone()),
+            None,
+        );
+
+        let pattern_tokens = self.compile_pattern(&patterns_group);
+
+        // 1. 定义 Struct
+        self.define_invisible_item(parse_quote! {
+            #[allow(non_camel_case_types)]
+            pub #struct_def
+        });
+
+        // 2. 定义 Trait (为了避免命名冲突的习惯用法)
+        let parse_trait = format_ident!("_{}_Parse", item_name);
+        self.define_invisible_item(parse_quote! {
+            #[allow(non_camel_case_types)]
+            pub trait #parse_trait {
+                fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<#item_name>;
+            }
+        });
+
+        // 3. 实现 Trait / Parse
+        self.define_invisible_item(parse_quote! {
+            impl #parse_trait for #item_name {
+                fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
+                    #capture_init
+                    #pattern_tokens
+                    ::std::result::Result::Ok(#struct_expr)
+                }
+            }
+        });
+
+        // 4. 返回类型路径
+        if let Some(scope) = crate::scope_context::get_scope_ident() {
+            quote!(#scope::#item_name)
+        } else {
+            quote!(#item_name)
+        }
+    }
+
+    /// 辅助函数：生成 Binder 对应的接收器代码
+    fn compile_binder_receiver(&self, binder: &Binder) -> TokenStream {
+        match binder {
+            Binder::Named(ident) => quote! { #ident = },
+            Binder::Inline(i) => {
+                let id = format_ident!("_{}", i.to_string());
+                quote! { #id = }
+            }
+            _ => quote! {},
+        }
+    }
+
+    /// 提取出复杂的 Anonymous + Optional 逻辑
+    fn compile_anonymous_optional_nested(
+        &mut self,
+        patterns: &[Pattern],
+        span: &Span,
+    ) -> TokenStream {
+        let optimized_list = inject_lookahead(patterns.to_vec());
+        let patterns = Pattern {
+            kind: PatternKind::Group {
+                delimiter: Delimiter::None,
+                children: optimized_list,
+            },
+            span: *span,
+            meta: None,
+        };
+
+        let joint_token = self.compile_pattern(&patterns);
+        let captures = patterns.collect_captures();
+        let (capture_init, struct_def, struct_expr, fields) =
+            generate_output(&captures, None, None);
+
+        let assigns_err = fields.iter().map(|ident| {
+            quote! { #ident = ::std::option::Option::None; }
+        });
+
+        let assigns_ok = captures.iter().enumerate().map(|(i, cap)| {
+            let ident = &fields[i];
+            let access = if cap.is_inline {
+                LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+            } else {
+                quote! {#ident}
+            };
+            quote! { #ident = ::std::option::Option::Some(output.#access); }
+        });
+
+        quote! {
+            #struct_def
+            let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
+                #capture_init
+                #joint_token
+                ::std::result::Result::Ok(#struct_expr)
+            };
+            let _fork = input.fork();
+            match _parser(&_fork) {
+                ::std::result::Result::Ok(output) => {
+                    ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                    #(#assigns_ok)*
+                }
+                ::std::result::Result::Err(_) => {
+                    #(#assigns_err)*
+                }
+            }
+        }
     }
     fn compile_matcher(&mut self, matcher: &Matcher) -> TokenStream {
         match &matcher.kind {
@@ -389,7 +314,7 @@ impl Compiler {
             EnumVariant::Type { ident, ty } => {
                 quote! {
                     let _fork = input.fork();
-                    if let ::std::result::Result::Ok(v) = _fork.parse::<#ty>() {
+                    if let ::std::result::Result::Ok(v) = <#ty as ::syn::parse::Parse>::parse(&_fork) {
                         ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                         return ::std::result::Result::Ok(#enum_name::#ident(v));
                     };

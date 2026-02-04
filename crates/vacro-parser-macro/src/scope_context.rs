@@ -1,8 +1,21 @@
-use std::cell::RefCell;
+use std::{
+    cell::RefCell,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use syn::Ident;
 
 thread_local! {
     static SCOPE_IDENT: RefCell<Option<Ident>> = const { RefCell::new(None) };
+    static INLINE_COUNTER: AtomicUsize = const { AtomicUsize::new(0) };
+}
+
+pub fn next_inline_index() -> usize {
+    INLINE_COUNTER.with(|i| i.fetch_add(1, Ordering::Relaxed))
+}
+
+#[cfg(test)]
+pub fn reset_inline_counter() {
+    INLINE_COUNTER.with(|i| i.store(0, Ordering::SeqCst))
 }
 
 /// Sets the current scope identifier.

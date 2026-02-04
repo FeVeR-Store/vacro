@@ -39,7 +39,6 @@ impl Compiler {
             #let_token #pat = {
                 #(#scoped_definition)*
                 use ::syn::parse::Parse;
-                trait _Parse: Parse {}
                 #struct_def
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                     #capture_init
@@ -82,7 +81,6 @@ impl Compiler {
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
                     #(#scoped_definition)*
-                    trait _Parse: ::syn::parse::Parse {}
                     #capture_init
                     #patterns_tokens
                     ::std::result::Result::Ok(#struct_expr)
