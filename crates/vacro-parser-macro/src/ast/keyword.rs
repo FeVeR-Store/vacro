@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use proc_macro2::{Punct, TokenStream};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -13,6 +13,15 @@ pub enum Keyword {
         name: Ident,
         content: String,
     },
+}
+
+impl fmt::Display for Keyword {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Keyword::Rust(keyword) => write!(f, "{keyword}"),
+            Keyword::Custom { content, .. } => write!(f, "{content}"),
+        }
+    }
 }
 
 impl Keyword {

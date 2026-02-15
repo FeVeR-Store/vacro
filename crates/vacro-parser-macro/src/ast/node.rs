@@ -14,10 +14,12 @@
 //! </div>
 //!
 
-use proc_macro2::Span;
+use std::vec;
+
+use proc_macro2::{Delimiter, Span};
 
 use crate::ast::{
-    capture::{Capture, FieldDef},
+    capture::{Capture, ExampleItem, FieldDef},
     keyword::Keyword,
     meta::SemanticInfo,
 };
@@ -55,6 +57,27 @@ impl Pattern {
                 children.iter().flat_map(|p| p.collect_captures()).collect()
             }
             PatternKind::Capture(cap) => cap.collect_captures(),
+        }
+    }
+    pub fn collect_example(&self) -> Vec<ExampleItem> {
+        match &self.kind {
+            PatternKind::Literal(lit) => vec![ExampleItem::Literal(lit.to_string())],
+            PatternKind::Capture(cap) => cap.collect_example(),
+            PatternKind::Group {
+                delimiter,
+                children,
+            } => {
+                let delimiter = match delimiter {
+                    Delimiter::Brace => ("{", "}"),
+                    Delimiter::Bracket => ("[", "]"),
+                    Delimiter::Parenthesis => ("(", ")"),
+                    _ => ("", ""),
+                };
+                vec![ExampleItem::Group {
+                    delimiter: (delimiter.0.to_string(), delimiter.1.to_string()),
+                    example: children.iter().flat_map(|p| p.collect_example()).collect(),
+                }]
+            }
         }
     }
 }

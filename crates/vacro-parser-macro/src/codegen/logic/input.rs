@@ -4,7 +4,10 @@ use syn::Local;
 
 use crate::{
     ast::input::{BindInput, DefineInput},
-    codegen::{logic::Compiler, output::generate_output},
+    codegen::{
+        logic::Compiler,
+        output::{generate_example, generate_output},
+    },
     scope_context,
 };
 
@@ -26,6 +29,7 @@ impl Compiler {
 
         let patterns_tokens = self.compile_pattern(patterns);
         let captures = patterns.collect_captures();
+        let example_items = patterns.collect_example();
 
         let Compiler {
             shared_definition,
@@ -34,11 +38,19 @@ impl Compiler {
         } = &self;
 
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None, None);
+        let (example_doc, extra) = generate_example(&example_items, false, false, false);
+        let extra = extra.iter().map(|e| {
+            quote! {
+                #[doc = #e]
+            }
+        });
         tokens.extend(quote! {
             #(#shared_definition)*
             #let_token #pat = {
                 #(#scoped_definition)*
                 use ::syn::parse::Parse;
+                #[doc = #example_doc]
+                #(#extra)*
                 #struct_def
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                     #capture_init
@@ -65,6 +77,7 @@ impl Compiler {
         let patterns_tokens = self.compile_pattern(patterns);
 
         let captures = patterns.collect_captures();
+        let example_items = patterns.collect_example();
 
         let Compiler {
             shared_definition,
@@ -75,8 +88,17 @@ impl Compiler {
         let (capture_init, struct_def, struct_expr, _) =
             generate_output(&captures, Some(name.clone()), Some(visibility.clone()));
 
+        let (example_doc, extra) = generate_example(&example_items, false, false, false);
+        let extra = extra.iter().map(|e| {
+            quote! {
+                #[doc = #e]
+            }
+        });
+
         tokens.extend(quote! {
             #(#shared_definition)*
+            #[doc = #example_doc]
+            #(#extra)*
             #struct_def
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {

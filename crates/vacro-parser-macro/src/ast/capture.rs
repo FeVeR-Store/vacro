@@ -1,4 +1,5 @@
 use proc_macro2::Span;
+use quote::quote;
 use syn::{
     token::{self},
     Ident, LitInt, Token, Type,
@@ -205,6 +206,117 @@ fn generate_captures(ty: &Type, binder: &Binder) -> Option<FieldDef> {
             is_inline: true,
         }),
         Binder::Anonymous => None, // _: Type 不产生字段
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ExampleItem {
+    Literal(String),
+    Capture {
+        name: String,
+        ty: String,
+    },
+    Group {
+        delimiter: (String, String),
+        example: Vec<ExampleItem>,
+    },
+    Block {
+        optional: bool,
+        example: Vec<ExampleItem>,
+        iter: String,
+    },
+    Poly {
+        name: String,
+        syntex_name: String,
+        example: Vec<ExampleItem>,
+    },
+}
+
+impl Capture {
+    pub fn collect_example(&self) -> Vec<ExampleItem> {
+        self.matcher.collect_example(&self.binder, &self.quantity)
+    }
+}
+
+type MatcherEnumVariant = (EnumVariant, Matcher);
+trait CollectExample {
+    fn collect_example(&self) -> Vec<ExampleItem>;
+}
+
+impl CollectExample for MatcherEnumVariant {
+    fn collect_example(&self) -> Vec<ExampleItem> {
+        match self {
+            (EnumVariant::Type { ident, ty }, ..) => {
+                vec![ExampleItem::Capture {
+                    name: quote! {#ident}.to_string(),
+                    ty: quote! {#ty}.to_string(),
+                }]
+            }
+            (EnumVariant::Capture { pattern, .. }, ..) => pattern.collect_example(),
+        }
+    }
+}
+
+impl Matcher {
+    pub fn collect_example(&self, binder: &Binder, quantity: &Quantity) -> Vec<ExampleItem> {
+        let name = match binder {
+            Binder::Named(ident) => ident.to_string(),
+            _ => String::new(),
+        };
+        let wrapper = |items: Vec<ExampleItem>| match quantity {
+            Quantity::One => items,
+            Quantity::Many(sep) => {
+                let iter = if let Some(sep) = sep {
+                    sep.to_string()
+                } else {
+                    String::new()
+                };
+                vec![ExampleItem::Block {
+                    optional: false,
+                    example: items,
+                    iter,
+                }]
+            }
+            Quantity::Optional => vec![ExampleItem::Block {
+                optional: true,
+                example: items,
+                iter: String::new(),
+            }],
+        };
+        let items = match &self.kind {
+            MatcherKind::Enum {
+                enum_name,
+                variants,
+            } => {
+                vec![ExampleItem::Poly {
+                    name: name.to_string(),
+                    syntex_name: quote! {#enum_name}.to_string(),
+                    example: variants
+                        .iter()
+                        .map(|v| {
+                            let examples = v.collect_example();
+                            if let Some(example) = examples.first() {
+                                example.clone()
+                            } else {
+                                ExampleItem::Block {
+                                    optional: false,
+                                    example: examples,
+                                    iter: String::new(),
+                                }
+                            }
+                        })
+                        .collect(),
+                }]
+            }
+            MatcherKind::SynType(ty) => {
+                vec![ExampleItem::Capture {
+                    name: name.to_string(),
+                    ty: quote! {#ty}.to_string(),
+                }]
+            }
+            MatcherKind::Nested(nest) => nest.iter().flat_map(|n| n.collect_example()).collect(),
+        };
+        wrapper(items)
     }
 }
 
