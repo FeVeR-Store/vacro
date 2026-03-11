@@ -14,7 +14,7 @@
 
 ```toml
 [dependencies]
-vacro-parser = "0.1.9"
+vacro-parser = "0.1.10"
 ```
 
 ## 核心功能
@@ -80,6 +80,7 @@ fn main() {}
 | `#(T)`          | **匿名捕获**: 验证 `T` 存在但不捕获   | `!`                  | `#(Ident)`           |
 | `#(?: T)`       | **匿名可选**: 仅作验证                | `!`                  | `#(?: Ident)`        |
 | `#(*[sep]: T)`  | **匿名迭代**: 仅作验证                | `!`                  | `#(*[,]: Ident)`     |
+| `#{literal}`    | **字面量捕获**: 按内容的字面量进行捕获   | `!`                  | `#{ #(not: a #(capture)) }`|
 
 ## 多态捕获 (Enum Parsing)
 
@@ -105,7 +106,7 @@ fn main() {}
 你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
 
 ```toml
-vacro_parser = { version = "0.1.9" }
+vacro_parser = { version = "0.1.10" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
 # vacro = { version = "0.2.3", features = ["parser", "report"] }
