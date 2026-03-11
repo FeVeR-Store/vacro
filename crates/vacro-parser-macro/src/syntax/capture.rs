@@ -134,6 +134,25 @@ impl Capture {
 impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
+            // #{...} 字面量捕获：将大括号内容作为字面量模式
+            if input.peek2(token::Brace) {
+                let _hash: Token![#] = input.parse()?;
+                let start_span = _hash.span;
+                let content;
+                let _brace = braced!(content in input);
+                let inner = Pattern::parse_raw(&content, ctx)?;
+                let end_span = inner.span;
+                let children = if let PatternKind::Group { children, .. } = inner.kind {
+                    children
+                } else {
+                    vec![inner]
+                };
+                let matcher = Matcher {
+                    kind: MatcherKind::Nested(children),
+                    span: start_span.join(end_span).unwrap_or(start_span),
+                };
+                return Ok(matcher);
+            }
             // 仅是一个 #，作为符号
             if !input.peek2(token::Paren) {
                 let _hash_tag = input.parse::<Token![#]>()?;
@@ -287,9 +306,13 @@ impl Parse for EnumVariant {
         let fork = input.fork();
         // 可能是Type或Pattern
         if let Ok(ty) = fork.parse::<Type>() {
-            input.advance_to(&fork);
-            Ok(EnumVariant::Type { ident, ty })
-        } else {
+            // 必须检查边界：Type 后应该是 ',' 或结束
+            if fork.is_empty() || fork.peek(Token![,]) {
+                input.advance_to(&fork);
+                return Ok(EnumVariant::Type { ident, ty });
+            }
+        }
+        {
             let fork = input.fork();
             // 如果是Pattern，那需要确认边界，即找到最近的 ','
             // 否则Pattern会贪婪匹配，将其他分支吞掉

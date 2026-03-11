@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Ident, Visibility};
 
-use crate::ast::capture::FieldDef;
+use crate::ast::capture::{ExampleItem, FieldDef};
 
 type CaptureInit = TokenStream;
 type StructDef = TokenStream;
@@ -80,6 +80,119 @@ pub fn generate_output(
             capture_ident_list,
         )
     }
+}
+
+pub fn generate_example(
+    example_items: &[ExampleItem],
+    is_block: bool,
+    is_extra: bool,
+    is_inline: bool,
+) -> (String, Vec<String>) {
+    let mut example = String::new();
+    let mut extra_example = vec![];
+    let last_index = example_items.len() - 1;
+    for (i, item) in example_items.iter().enumerate() {
+        example += &match item {
+            ExampleItem::Literal(lit) => {
+                if is_extra {
+                    format!("{} ", lit)
+                } else {
+                    format!("**{}** ", lit)
+                }
+            }
+            ExampleItem::Block {
+                optional,
+                example,
+                iter,
+            } => {
+                let (inner, mut extra) = generate_example(example, true, is_extra, false);
+                extra_example.append(&mut extra);
+                let suffix = format!(
+                    "{}{}",
+                    if iter.is_empty() {
+                        String::new()
+                    } else {
+                        format!("{} ...", iter)
+                    },
+                    if *optional { "?" } else { "" }
+                );
+                if is_extra {
+                    format!("{}\n\n{}{}\n\n{}", "```", inner, suffix, "```")
+                } else if is_block {
+                    format!(" {}{} ", inner, suffix)
+                } else {
+                    format!("*[{}{}]()* ", inner, suffix)
+                }
+            }
+            ExampleItem::Capture { name, ty } => {
+                let ty = ty.replace(" ", ""); // 间隔优化
+                if name.is_empty() {
+                    if is_extra {
+                        ty.to_string()
+                    } else {
+                        format!("*{}* ", ty)
+                    }
+                } else if is_extra {
+                    if is_inline {
+                        format!("{}@{},", name, ty)
+                    } else {
+                        format!("    {}@{},", name, ty)
+                    }
+                } else if is_block {
+                    format!("*{}@`{}`* ", name, ty)
+                } else {
+                    format!("*[{}@`{}`]()* ", name, ty)
+                }
+            }
+            ExampleItem::Poly {
+                name,
+                syntex_name,
+                example,
+            } => {
+                let (inner, mut extra) = generate_example(example, is_block, true, false);
+                extra_example.push(format!("```\n{} {{\n{}\n}}\n```\n", syntex_name, inner));
+
+                extra_example.append(&mut extra);
+                if is_extra {
+                    syntex_name.to_string()
+                } else if name.is_empty() {
+                    format!("*{}* ", syntex_name)
+                } else {
+                    format!("*{}@`{}`* ", name, syntex_name)
+                }
+            }
+            ExampleItem::Group { delimiter, example } => {
+                let (inner, mut extra) = generate_example(example, is_block, is_extra, is_extra);
+                extra_example.append(&mut extra);
+                if is_extra {
+                    if delimiter.0.is_empty() {
+                        if is_inline {
+                            inner
+                        } else {
+                            format!("    {inner}")
+                        }
+                    } else if is_inline {
+                        format!("{}{}{}", delimiter.0, inner, delimiter.1)
+                    } else {
+                        format!("{}\n    {}\n{}", delimiter.0, inner, delimiter.1)
+                    }
+                } else if delimiter.0.is_empty() {
+                    format!("{} ", inner)
+                } else {
+                    format!(
+                        "**{}**\n\n&nbsp;&nbsp;&nbsp;&nbsp;{}\n\n**{}** ",
+                        delimiter.0, inner, delimiter.1
+                    )
+                }
+            }
+        };
+        example += if !is_inline && is_extra && last_index != i {
+            "\n"
+        } else {
+            ""
+        };
+    }
+    (example, extra_example)
 }
 
 #[cfg(test)]

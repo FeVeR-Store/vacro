@@ -71,6 +71,7 @@ if let Some(ret_type) = captured.ret {
 | `#(T)`          | **Anonymous Match**: Validates `T` exists but doesn't capture | `!`                  | `#(Ident)`           |
 | `#(?: T)`       | **Anonymous Optional**: Validation only                       | `!`                  | `#(?: Ident)`        |
 | `#(*[sep]: T)`  | **Anonymous Iter**: Validation only                           | `!`                  | `#(*[,]: Ident)`     |
+| `#{literal}`    | **Literal Capture**: Captures content as literal tokens       | `!`                  | `#{ #(not: a #(capture)) }`|
 
 ## Polymorphic Capture (Enum Parsing)
 
@@ -96,7 +97,7 @@ define!(MyPoly:
 You can use the `help!` macro of `vacro-report` to provide more helpful suggestions for the content. If you are using `vacro`, you only need to enable the `report` feature.
 
 ```toml
-vacro_parser = { version = "0.1.9" }
+vacro_parser = { version = "0.1.10" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
 # vacro = { version = "0.2.3", features = ["parser", "report"] }

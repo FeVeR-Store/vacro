@@ -3,7 +3,7 @@ use quote::TokenStreamExt;
 use syn::{
     parenthesized,
     parse::{discouraged::Speculative, Parse, Parser},
-    Local, Stmt, Token,
+    Attribute, Local, Stmt, Token,
 };
 
 use crate::ast::{
@@ -56,6 +56,7 @@ impl Parse for BindInput {
 
 impl Parse for DefineInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
         let visibility = input.parse()?;
         let name = input.parse()?;
         let _colon = input.parse()?;
@@ -65,6 +66,7 @@ impl Parse for DefineInput {
             name,
             _colon,
             patterns,
+            attrs,
         })
     }
 }
