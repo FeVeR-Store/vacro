@@ -318,19 +318,21 @@ fn test_anonymous_optional_backtracking() {
     assert_eq!(result_full.target_ident.to_string(), "Target");
 }
 
-define!(Device:
-    #(name: Ident) {
-        #(field*[,]: Field {
-            Transport: transport: #(@: Expr), // transport: Transport("localhost:8080")
-            Package: package: #(@: Expr), // package: package::name
-            Batch: #{batch}, // batch
-            Event: event #(name: Ident)#(body: EventBody {
-                Named: { #(field*[,]: PatType) }, // event Test { a: i16, b: bool }
-                Unamed: ( #(field*[,]: #(Type)) ) // event Test(i16, bool)
-            }),
-            Channel: channel #(@:Ident), // channel Test
-        })
-    }
+define!(
+    #[derive(Debug)]
+    Device:
+        #(name: Ident) {
+            #(field*[,]: Field {
+                Transport: transport: #(@: Expr), // transport: Transport("localhost:8080")
+                Package: package: #(@: Expr), // package: package::name
+                Batch: #{batch}, // batch
+                Event: event #(name: Ident)#(body: EventBody {
+                    Named: { #(field*[,]: PatType) }, // event Test { a: i16, b: bool }
+                    Unamed: ( #(field*[,]: #(Type)) ) // event Test(i16, bool)
+                }),
+                Channel: channel #(@:Ident), // channel Test
+            })
+        }
 );
 
 #[test]
@@ -412,4 +414,23 @@ fn test_device() {
         }
         _ => panic!("6th field should be Channel"),
     }
+}
+
+define!(
+    #[derive(Debug)]
+    Password:
+        #{world is mine!}
+);
+
+#[test]
+fn test_literal() {
+    let input = quote! {
+        world is mine!
+    };
+    let _ = Password::parse.parse2(input).expect("that's right");
+
+    let input = quote! {
+        word is mine?
+    };
+    let _ = Password::parse.parse2(input).expect_err("that's wrong");
 }

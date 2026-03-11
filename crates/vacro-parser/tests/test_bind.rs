@@ -187,3 +187,13 @@ fn test_mixed_nested() {
     assert_eq!(res.nested.b.to_string(), "y");
     assert_eq!(res.nested.c.to_string(), "z");
 }
+
+#[test]
+fn test_literal() {
+    let input = quote! {
+        #(cow: moww)
+    };
+    bind! {
+        let _ = (input -> #{ #(cow: moww) }).unwrap();
+    };
+}
