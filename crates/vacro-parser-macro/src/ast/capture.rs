@@ -59,6 +59,7 @@ pub enum MatcherKind {
 
 #[derive(Clone)]
 #[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+#[allow(dead_code)]
 pub enum EnumVariant {
     Type {
         ident: Type,

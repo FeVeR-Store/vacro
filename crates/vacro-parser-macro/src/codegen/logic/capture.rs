@@ -67,10 +67,11 @@ impl Compiler {
         span: &Span,
         receiver: &TokenStream,
     ) -> TokenStream {
-        // A. 获取要解析的目标类型 (Type)
-        let (ty, is_scoped) = match &matcher.kind {
+        // A. 获取要解析的目标类型 (Type) 和对应的 parse trait
+        let (_ty, parse_trait) = match &matcher.kind {
             MatcherKind::Enum { .. } | MatcherKind::SynType(_) => {
-                (self.compile_matcher(matcher), false)
+                let ty = self.compile_matcher(matcher);
+                (ty.clone(), quote! {<#ty as ::syn::parse::Parse>})
             }
             MatcherKind::Nested(patterns) => {
                 // 根据 Binder 类型生成结构体名称
@@ -79,31 +80,32 @@ impl Compiler {
                     Binder::Inline(inline) => format_ident!("_{}", inline),
                     _ => format_ident!("_Anon_Item"), // Fallback，通常不会走到这里
                 };
+                let parse_trait_ident = format_ident!("_{}_Parse", struct_ident);
                 // 生成嵌套结构体并返回其类型
-                (
-                    self.define_nested_parser(&struct_ident, patterns, *span),
-                    true,
-                )
+                let ty = self.define_nested_parser(&struct_ident, patterns, *span);
+                // 使用完全限定语法调用自定义 trait，无需将 trait 导入当前作用域
+                let scope = crate::scope_context::get_scope_ident();
+                let qualified = if let Some(scope) = scope {
+                    quote! {<#ty as #scope::#parse_trait_ident>}
+                } else {
+                    quote! {<#ty as #parse_trait_ident>}
+                };
+                (ty, qualified)
             }
         };
 
-        let ty = if is_scoped {
-            quote! {<#ty>}
-        } else {
-            quote! {<#ty as ::syn::parse::Parse>}
-        };
         // B. 根据数量 (Quantity) 生成解析动作
         match quantity {
             Quantity::One => {
                 quote! {
-                    #receiver #ty::parse(&input)?;
+                    #receiver #parse_trait::parse(&input)?;
                 }
             }
             Quantity::Optional => {
                 quote! {
                     {
                         let _fork = input.fork();
-                        if let ::std::result::Result::Ok(_parsed) = #ty::parse(&_fork) {
+                        if let ::std::result::Result::Ok(_parsed) = #parse_trait::parse(&_fork) {
                             #receiver ::std::option::Option::Some(_parsed);
                             ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                         }
@@ -113,7 +115,7 @@ impl Compiler {
             Quantity::Many(separator) => {
                 quote! {
                     {
-                        #receiver input.parse_terminated(#ty::parse, #separator)?;
+                        #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
                     }
                 }
             }
@@ -137,11 +139,10 @@ impl Compiler {
             meta: None,
         };
 
-        let (capture_init, struct_def, struct_expr, _) = generate_output(
-            &patterns_group.collect_captures(),
-            Some(item_name.clone()),
-            None,
-        );
+        let captures = patterns_group.collect_captures();
+
+        let (capture_init, struct_def, struct_expr, _) =
+            generate_output(&captures, Some(item_name.clone()), None);
 
         let pattern_tokens = self.compile_pattern(&patterns_group);
 
@@ -151,7 +152,7 @@ impl Compiler {
             pub #struct_def
         });
 
-        // 2. 定义 Trait (为了避免命名冲突的习惯用法)
+        // 2. 定义 Trait（避免与 syn::parse::Parse 冲突）
         let parse_trait = format_ident!("_{}_Parse", item_name);
         self.define_invisible_item(parse_quote! {
             #[allow(non_camel_case_types)]
@@ -160,7 +161,7 @@ impl Compiler {
             }
         });
 
-        // 3. 实现 Trait / Parse
+        // 3. 实现 Trait
         self.define_invisible_item(parse_quote! {
             impl #parse_trait for #item_name {
                 fn parse(input: ::syn::parse::ParseStream) -> ::syn::Result<Self> {
@@ -171,7 +172,7 @@ impl Compiler {
             }
         });
 
-        // 4. 返回类型路径
+        // 3. 返回类型路径
         if let Some(scope) = crate::scope_context::get_scope_ident() {
             quote!(#scope::#item_name)
         } else {
@@ -266,13 +267,11 @@ impl Compiler {
         variants
             .iter()
             .map(|(v, _)| match v {
-                EnumVariant::Capture {
-                    ident,
-                    named,
-                    fields,
-                    ..
-                } => {
-                    let body = if *named {
+                EnumVariant::Capture { ident, pattern, .. } => {
+                    // 在 codegen 阶段重新收集 captures，确保 scope 已设置
+                    let fields = pattern.collect_captures();
+                    let named = fields.first().map(|f| !f.is_inline).unwrap_or(false);
+                    let body = if named {
                         let fields: Punctuated<_, Comma> = fields
                             .iter()
                             .map(|FieldDef { name, ty, .. }| quote! {#name: #ty})
@@ -282,6 +281,8 @@ impl Compiler {
                                 #fields
                             }
                         }
+                    } else if fields.is_empty() {
+                        quote! {}
                     } else {
                         let fields: Punctuated<_, Comma> =
                             fields.iter().map(|FieldDef { ty, .. }| ty).collect();
@@ -322,16 +323,19 @@ impl Compiler {
             }
             EnumVariant::Capture {
                 ident,
-                fields,
                 pattern,
-                named,
                 ..
             } => {
-                let (capture_init, _, _, capture_list) = generate_output(fields, None, None);
+                // 在 codegen 阶段重新收集 captures，确保 scope 已设置
+                let fields = pattern.collect_captures();
+                let named = fields.first().map(|f| !f.is_inline).unwrap_or(false);
+                let (capture_init, _, _, capture_list) = generate_output(&fields, None, None);
                 let pattern_tokens = self.compile_pattern(pattern);
                 let enum_expr_body = capture_list.iter().collect::<Punctuated<_, Token![,]>>();
-                let enum_expr = if *named {
+                let enum_expr = if named {
                     quote! {{#enum_expr_body}}
+                } else if fields.is_empty() {
+                    quote! {}
                 } else {
                     quote! {(#enum_expr_body)}
                 };

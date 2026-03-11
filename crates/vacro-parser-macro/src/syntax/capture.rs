@@ -306,9 +306,13 @@ impl Parse for EnumVariant {
         let fork = input.fork();
         // 可能是Type或Pattern
         if let Ok(ty) = fork.parse::<Type>() {
-            input.advance_to(&fork);
-            Ok(EnumVariant::Type { ident, ty })
-        } else {
+            // 必须检查边界：Type 后应该是 ',' 或结束
+            if fork.is_empty() || fork.peek(Token![,]) {
+                input.advance_to(&fork);
+                return Ok(EnumVariant::Type { ident, ty });
+            }
+        }
+        {
             let fork = input.fork();
             // 如果是Pattern，那需要确认边界，即找到最近的 ','
             // 否则Pattern会贪婪匹配，将其他分支吞掉

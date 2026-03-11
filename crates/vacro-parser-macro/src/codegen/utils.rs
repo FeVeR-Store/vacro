@@ -6,27 +6,27 @@ use crate::codegen::logic::Compiler;
 impl Compiler {
     pub fn define_invisible_item(&mut self, item: Item) {
         let mod_ident = self.get_private_scope_ident();
-        if let Some(mod_item) = self.shared_definition.get_mut(0) {
-            if let Item::Mod(m) = mod_item {
-                if let Some((_, items)) = m.content.as_mut() {
-                    items.push(item)
-                }
+        if let Some(Item::Mod(m)) = self.shared_definition.get_mut(0) {
+            if let Some((_, items)) = m.content.as_mut() {
+                items.push(item);
+                return;
             }
-        } else {
-            let mod_definition: Item = parse_quote! {
-                #[doc(hidden)]
-                #[allow(non_snake_case)]
-                pub mod #mod_ident {
-                    use super::*;
-                    use ::syn::parse::Parse;
-                    #item
-                }
-            };
-            self.scoped_definition.push(parse_quote! {
-                use #mod_ident::*;
-            });
-            self.shared_definition.insert(0, mod_definition);
         }
+        // Module doesn't exist yet (shared_definition is empty or [0] is not a module), create it
+        let mod_definition: Item = parse_quote! {
+            #[doc(hidden)]
+            #[allow(non_snake_case)]
+            pub mod #mod_ident {
+                use super::*;
+                use ::syn::parse::Parse;
+                #item
+            }
+        };
+        self.scoped_definition.push(parse_quote! {
+            #[allow(unused_imports)]
+            use #mod_ident::*;
+        });
+        self.shared_definition.insert(0, mod_definition);
     }
     pub fn get_private_scope_ident(&self) -> Ident {
         format_ident!("__private_scope_for_{}", self.target)
