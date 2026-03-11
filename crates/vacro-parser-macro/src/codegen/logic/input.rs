@@ -68,10 +68,16 @@ impl Compiler {
             name,
             patterns,
             visibility,
+            attrs,
             ..
         } = input;
 
         self.target = name.clone();
+        self.derive_attrs = attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("derive"))
+            .cloned()
+            .collect();
         scope_context::set_scope_ident(Some(self.get_private_scope_ident()));
 
         let patterns_tokens = self.compile_pattern(patterns);
@@ -97,6 +103,7 @@ impl Compiler {
 
         tokens.extend(quote! {
             #(#shared_definition)*
+            #(#attrs)*
             #[doc = #example_doc]
             #(#extra)*
             #struct_def

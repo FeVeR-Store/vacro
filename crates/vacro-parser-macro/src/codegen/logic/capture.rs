@@ -146,8 +146,11 @@ impl Compiler {
 
         let pattern_tokens = self.compile_pattern(&patterns_group);
 
+        let derive_attrs = &self.derive_attrs;
+
         // 1. 定义 Struct
         self.define_invisible_item(parse_quote! {
+            #(#derive_attrs)*
             #[allow(non_camel_case_types)]
             pub #struct_def
         });
@@ -300,7 +303,9 @@ impl Compiler {
     }
     fn define_enum(&mut self, enum_name: &Type, variants: &[(EnumVariant, Matcher)]) {
         let variants_struct = self.generate_variant_struct(variants);
+        let derive_attrs = &self.derive_attrs;
         self.shared_definition.push(parse_quote! {
+            #(#derive_attrs)*
             pub enum #enum_name {
                 #variants_struct
             }

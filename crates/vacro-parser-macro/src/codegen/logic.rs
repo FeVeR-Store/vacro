@@ -1,7 +1,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use quote::format_ident;
-use syn::{Ident, Item};
+use syn::{Attribute, Ident, Item};
 
 mod capture;
 mod input;
@@ -12,6 +12,7 @@ pub struct Compiler {
     pub shared_definition: Vec<Item>,
     pub scoped_definition: Vec<Item>,
     pub target: Ident,
+    pub derive_attrs: Vec<Attribute>,
 }
 
 impl Compiler {
@@ -23,6 +24,7 @@ impl Compiler {
             shared_definition: vec![],
             scoped_definition: vec![],
             target: format_ident!("_{timestamp}"),
+            derive_attrs: vec![],
         }
     }
 }
