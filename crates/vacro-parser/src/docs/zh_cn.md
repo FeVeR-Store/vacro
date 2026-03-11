@@ -100,7 +100,7 @@ define!(MyPoly:
 vacro_parser = { version = "0.1.10" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version = "0.2.3", features = ["parser", "report"] }
+# vacro = { version = "0.2.5", features = ["parser", "report"] }
 ```
 
 ```rust,ignore
