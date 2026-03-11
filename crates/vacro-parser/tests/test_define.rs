@@ -317,3 +317,99 @@ fn test_anonymous_optional_backtracking() {
     let result_full = BacktrackTestParser::parse.parse2(input_full).unwrap();
     assert_eq!(result_full.target_ident.to_string(), "Target");
 }
+
+define!(Device:
+    #(name: Ident) {
+        #(field*[,]: Field {
+            Transport: transport: #(@: Expr), // transport: Transport("localhost:8080")
+            Package: package: #(@: Expr), // package: package::name
+            Batch: #{batch}, // batch
+            Event: event #(name: Ident)#(body: EventBody {
+                Named: { #(field*[,]: PatType) }, // event Test { a: i16, b: bool }
+                Unamed: ( #(field*[,]: #(Type)) ) // event Test(i16, bool)
+            }),
+            Channel: channel #(@:Ident), // channel Test
+        })
+    }
+);
+
+#[test]
+fn test_device() {
+    use syn::parse::Parser;
+
+    let input = quote! {
+        MyDevice {
+            transport: LocalSocket,
+            package: my_package::name,
+            batch,
+            event Connected { peer_id: u32 },
+            event Data(u8, bool),
+            channel Status
+        }
+    };
+
+    let device = Device::parse.parse2(input).unwrap();
+    assert_eq!(device.name.to_string(), "MyDevice");
+    assert_eq!(device.field.len(), 6);
+
+    // 1. Transport: transport: <Expr>
+    match device.field.iter().next().unwrap() {
+        Field::Transport(expr) => {
+            assert_eq!(quote! {#expr}.to_string(), "LocalSocket");
+        }
+        _ => panic!("1st field should be Transport"),
+    }
+
+    // 2. Package: package: <Expr>
+    match device.field.iter().nth(1).unwrap() {
+        Field::Package(expr) => {
+            assert_eq!(quote! {#expr}.to_string(), "my_package :: name");
+        }
+        _ => panic!("2nd field should be Package"),
+    }
+
+    // 3. Batch: batch (literal keyword, no captures)
+    match device.field.iter().nth(2).unwrap() {
+        Field::Batch => {} // unit variant, no captures
+        _ => panic!("3rd field should be Batch"),
+    }
+
+    // 4. Event with Named body: event Connected { peer_id: u32 }
+    match device.field.iter().nth(3).unwrap() {
+        Field::Event { name, body } => {
+            assert_eq!(name.to_string(), "Connected");
+            match body {
+                EventBody::Named { field } => {
+                    assert_eq!(field.len(), 1);
+                    let PatType { pat, ty, .. } = field.first().unwrap();
+                    assert_eq!(quote! {#pat}.to_string(), "peer_id");
+                    assert_eq!(quote! {#ty}.to_string(), "u32");
+                }
+                _ => panic!("4th field body should be Named"),
+            }
+        }
+        _ => panic!("4th field should be Event"),
+    }
+
+    // 5. Event with Unamed body: event Data(u8, bool)
+    match device.field.iter().nth(4).unwrap() {
+        Field::Event { name, body } => {
+            assert_eq!(name.to_string(), "Data");
+            match body {
+                EventBody::Unamed { field } => {
+                    assert_eq!(field.len(), 2);
+                }
+                _ => panic!("5th field body should be Unamed"),
+            }
+        }
+        _ => panic!("5th field should be Event"),
+    }
+
+    // 6. Channel: channel <Ident>
+    match device.field.iter().nth(5).unwrap() {
+        Field::Channel(ident) => {
+            assert_eq!(ident.to_string(), "Status");
+        }
+        _ => panic!("6th field should be Channel"),
+    }
+}
