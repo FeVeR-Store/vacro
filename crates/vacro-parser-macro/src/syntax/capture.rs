@@ -134,6 +134,25 @@ impl Capture {
 impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
+            // #{...} 字面量捕获：将大括号内容作为字面量模式
+            if input.peek2(token::Brace) {
+                let _hash: Token![#] = input.parse()?;
+                let start_span = _hash.span;
+                let content;
+                let _brace = braced!(content in input);
+                let inner = Pattern::parse_raw(&content, ctx)?;
+                let end_span = inner.span;
+                let children = if let PatternKind::Group { children, .. } = inner.kind {
+                    children
+                } else {
+                    vec![inner]
+                };
+                let matcher = Matcher {
+                    kind: MatcherKind::Nested(children),
+                    span: start_span.join(end_span).unwrap_or(start_span),
+                };
+                return Ok(matcher);
+            }
             // 仅是一个 #，作为符号
             if !input.peek2(token::Paren) {
                 let _hash_tag = input.parse::<Token![#]>()?;
