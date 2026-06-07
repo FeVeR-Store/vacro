@@ -113,6 +113,21 @@ fn test_blank_separated_iter_capture() {
 }
 
 #[test]
+fn test_empty_bracket_iter_capture() {
+    let input = quote!(mod hello world as short note);
+    bind!(
+        let res = (input -> mod #(message*[]: Ident) as #(summary*[ ]: Ident));
+    );
+
+    let output = res.unwrap();
+    let message: Vec<_> = output.message.iter().map(ToString::to_string).collect();
+    let summary: Vec<_> = output.summary.iter().map(ToString::to_string).collect();
+
+    assert_eq!(message, vec!["hello", "world"]);
+    assert_eq!(summary, vec!["short", "note"]);
+}
+
+#[test]
 fn test_anonymous_nested_iter_capture() {
     let input = quote!(alpha beta gamma);
     bind!(
@@ -122,6 +137,25 @@ fn test_anonymous_nested_iter_capture() {
     let output = res.unwrap();
     let tokens: Vec<_> = output.token.iter().map(ToString::to_string).collect();
     assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+}
+
+#[test]
+fn test_anonymous_nested_empty_bracket_iter_capture() {
+    let input = quote!(alpha as i32 beta as String);
+    bind!(
+        let res = (input -> #(*[]: #(name: Ident) as #(ty: Type)));
+    );
+
+    let output = res.unwrap();
+    let names: Vec<_> = output.name.iter().map(ToString::to_string).collect();
+    let types: Vec<_> = output
+        .ty
+        .iter()
+        .map(|ty| quote! {#ty}.to_string())
+        .collect();
+
+    assert_eq!(names, vec!["alpha", "beta"]);
+    assert_eq!(types, vec!["i32", "String"]);
 }
 
 // 测试自定义关键字与符号
