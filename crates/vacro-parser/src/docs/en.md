@@ -100,10 +100,10 @@ define!(MyPoly:
 You can use the `help!` macro of `vacro-report` to provide more helpful suggestions for the content. If you are using `vacro`, you only need to enable the `report` feature.
 
 ```toml
-vacro_parser = { version = "0.1.11" }
+vacro_parser = { version = "0.1.12" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version = "0.2.6", features = ["parser", "report"] }
+# vacro = { version = "0.2.7", features = ["parser", "report"] }
 ```
 
 ```rust,ignore
