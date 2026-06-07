@@ -67,10 +67,13 @@ if let Some(ret_type) = captured.ret {
 | `literal`       | Matches and consumes exact tokens                             | `!`                  | `fn`, `->`, `struct` |
 | `#(x: T)`       | **Named Capture**: Captures type `T` into field `x`           | `T`                  | `#(name: Ident)`     |
 | `#(x?: T)`      | **Named Optional**: Attempts to parse; skips if failed        | `Option<T>`          | `#(ret?: Type)`      |
-| `#(x*[sep]: T)` | **Named Iter**: Parses by separator                           | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
+| `#(x*: T)`      | **Named Blank Iter**: Parses consecutive tokens               | `Vec<T>`             | `#(tokens*: Ident)`  |
+| `#(x*[]: T)`    | **Named Blank Iter**: Parses consecutive tokens               | `Vec<T>`             | `#(tokens*[]: Ident)` |
+| `#(x*[sep]: T)` | **Named Delimited Iter**: Parses by separator                 | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
 | `#(T)`          | **Anonymous Match**: Validates `T` exists but doesn't capture | `!`                  | `#(Ident)`           |
 | `#(?: T)`       | **Anonymous Optional**: Validation only                       | `!`                  | `#(?: Ident)`        |
-| `#(*[sep]: T)`  | **Anonymous Iter**: Validation only                           | `!`                  | `#(*[,]: Ident)`     |
+| `#(*: #(x: T))` | **Anonymous Nested Blank Iter**: Collects inner fields        | `Vec<T>`             | `#(*: #(name: Ident))` |
+| `#(*[sep]: #(x: T))` | **Anonymous Nested Delimited Iter**: Collects inner fields | `Punctuated<T, sep>` | `#(*[,]: #(name: Ident))` |
 | `#{literal}`    | **Literal Capture**: Captures content as literal tokens       | `!`                  | `#{ #(not: a #(capture)) }`|
 
 ## Polymorphic Capture (Enum Parsing)
@@ -97,10 +100,10 @@ define!(MyPoly:
 You can use the `help!` macro of `vacro-report` to provide more helpful suggestions for the content. If you are using `vacro`, you only need to enable the `report` feature.
 
 ```toml
-vacro_parser = { version = "0.1.10" }
+vacro_parser = { version = "0.1.11" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version = "0.2.5", features = ["parser", "report"] }
+# vacro = { version = "0.2.6", features = ["parser", "report"] }
 ```
 
 ```rust,ignore

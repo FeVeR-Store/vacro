@@ -67,10 +67,13 @@ if let Some(ret_type) = captured.ret {
 | `literal`       | 匹配并消费确切的 Token                | `!`                  | `fn`, `->`, `struct` |
 | `#(x: T)`       | **具名捕获**: 捕获类型 `T` 到字段 `x` | `T`                  | `#(name: Ident)`     |
 | `#(x?: T)`      | **具名可选**: 尝试解析，失败则跳过    | `Option<T>`          | `#(ret?: Type)`      |
-| `#(x*[sep]: T)` | **具名迭代**: 按分隔符解析            | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
+| `#(x*: T)`      | **具名空白迭代**: 连续解析 token      | `Vec<T>`             | `#(tokens*: Ident)`  |
+| `#(x*[]: T)`    | **具名空白迭代**: 连续解析 token      | `Vec<T>`             | `#(tokens*[]: Ident)` |
+| `#(x*[sep]: T)` | **具名分隔迭代**: 按分隔符解析        | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
 | `#(T)`          | **匿名捕获**: 验证 `T` 存在但不捕获   | `!`                  | `#(Ident)`           |
 | `#(?: T)`       | **匿名可选**: 仅作验证                | `!`                  | `#(?: Ident)`        |
-| `#(*[sep]: T)`  | **匿名迭代**: 仅作验证                | `!`                  | `#(*[,]: Ident)`     |
+| `#(*: #(x: T))` | **匿名嵌套空白迭代**: 汇总内部字段    | `Vec<T>`             | `#(*: #(name: Ident))` |
+| `#(*[sep]: #(x: T))` | **匿名嵌套分隔迭代**: 汇总内部字段 | `Punctuated<T, sep>` | `#(*[,]: #(name: Ident))` |
 | `#{literal}`    | **字面量捕获**: 按内容的字面量进行捕获   | `!`                  | `#{ #(not: a #(capture)) }`|
 
 ## 多态捕获 (Enum Parsing)
@@ -97,10 +100,10 @@ define!(MyPoly:
 你可以使用`vacro-report`的`help!`宏为内容提供更友好的提示，若你使用了`vacro`，只需要开启`report`feature即可。
 
 ```toml
-vacro_parser = { version = "0.1.10" }
+vacro_parser = { version = "0.1.11" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version = "0.2.5", features = ["parser", "report"] }
+# vacro = { version = "0.2.6", features = ["parser", "report"] }
 ```
 
 ```rust,ignore
