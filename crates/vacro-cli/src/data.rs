@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::cmp::Reverse;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -35,7 +36,7 @@ pub fn scan_sessions(dir: &Path) -> Result<Vec<TraceSession>> {
     }
 
     // 按时间倒序排列 (最新的在最上面)
-    sessions.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    sessions.sort_by_key(|session| Reverse(session.timestamp));
     Ok(sessions)
 }
 

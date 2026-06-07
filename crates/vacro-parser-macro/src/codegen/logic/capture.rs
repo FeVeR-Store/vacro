@@ -44,7 +44,9 @@ impl Compiler {
                 (Quantity::Optional, MatcherKind::Nested(patterns)) => {
                     self.compile_anonymous_optional_nested(patterns, span)
                 }
-                // 如果有 Anonymous + Many 或其他情况，可以在此补充
+                (Quantity::Many(separator), MatcherKind::Nested(patterns)) => {
+                    self.compile_anonymous_many_nested(patterns, separator.as_ref(), span)
+                }
                 _ => self.compile_general_matcher(binder, quantity, matcher, span, &receiver),
             };
             tokens.extend(t);
@@ -68,7 +70,7 @@ impl Compiler {
         receiver: &TokenStream,
     ) -> TokenStream {
         // A. 获取要解析的目标类型 (Type) 和对应的 parse trait
-        let (_ty, parse_trait) = match &matcher.kind {
+        let (ty, parse_trait) = match &matcher.kind {
             MatcherKind::Enum { .. } | MatcherKind::SynType(_) => {
                 let ty = self.compile_matcher(matcher);
                 (ty.clone(), quote! {<#ty as ::syn::parse::Parse>})
@@ -112,13 +114,34 @@ impl Compiler {
                     }
                 }
             }
-            Quantity::Many(separator) => {
-                quote! {
-                    {
-                        #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+            Quantity::Many(separator) => match separator {
+                Some(separator) => {
+                    quote! {
+                        {
+                            #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+                        }
                     }
                 }
-            }
+                None => {
+                    quote! {
+                        {
+                            let mut _items = ::std::vec::Vec::<#ty>::new();
+                            while !input.is_empty() {
+                                let _before = input.cursor();
+                                let _parsed = #parse_trait::parse(&input)?;
+                                if input.cursor() == _before {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "iterative capture did not consume any tokens",
+                                    ));
+                                }
+                                _items.push(_parsed);
+                            }
+                            #receiver _items;
+                        }
+                    }
+                }
+            },
         }
     }
 
@@ -247,6 +270,124 @@ impl Compiler {
                     #(#assigns_err)*
                 }
             }
+        }
+    }
+    fn compile_anonymous_many_nested(
+        &mut self,
+        patterns: &[Pattern],
+        separator: Option<&crate::ast::keyword::Keyword>,
+        span: &Span,
+    ) -> TokenStream {
+        let optimized_list = inject_lookahead(patterns.to_vec());
+        let patterns = Pattern {
+            kind: PatternKind::Group {
+                delimiter: Delimiter::None,
+                children: optimized_list,
+            },
+            span: *span,
+            meta: None,
+        };
+
+        let joint_token = self.compile_pattern(&patterns);
+        let captures = patterns.collect_captures();
+        let (capture_init, struct_def, struct_expr, fields) =
+            generate_output(&captures, None, None);
+
+        let collection_names = fields
+            .iter()
+            .map(|ident| format_ident!("_{ident}_items"))
+            .collect::<Vec<_>>();
+
+        let collection_init = collection_names.iter().map(|ident| {
+            if separator.is_some() {
+                quote! {
+                    let mut #ident = ::syn::punctuated::Punctuated::new();
+                }
+            } else {
+                quote! {
+                    let mut #ident = ::std::vec::Vec::new();
+                }
+            }
+        });
+
+        let push_values = captures.iter().enumerate().map(|(i, cap)| {
+            let collection = &collection_names[i];
+            let access = if cap.is_inline {
+                LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+            } else {
+                let ident = &fields[i];
+                quote! {#ident}
+            };
+            if separator.is_some() {
+                quote! {
+                    #collection.push_value(output.#access);
+                }
+            } else {
+                quote! {
+                    #collection.push(output.#access);
+                }
+            }
+        });
+
+        let assign_collections =
+            fields
+                .iter()
+                .zip(collection_names.iter())
+                .map(|(field, collection)| {
+                    quote! {
+                        #field = #collection;
+                    }
+                });
+
+        let parse_item = quote! {
+            let _before = input.cursor();
+            let output = _parser(input)?;
+            if input.cursor() == _before {
+                return ::std::result::Result::Err(::syn::Error::new(
+                    input.span(),
+                    "iterative capture did not consume any tokens",
+                ));
+            }
+            #(#push_values)*
+        };
+
+        let parse_loop = if let Some(separator) = separator {
+            let push_puncts = collection_names.iter().map(|collection| {
+                quote! {
+                    #collection.push_punct(::std::clone::Clone::clone(&_punct));
+                }
+            });
+            quote! {
+                loop {
+                    if input.is_empty() {
+                        break;
+                    }
+                    #parse_item
+                    if input.is_empty() {
+                        break;
+                    }
+                    let _punct: #separator = input.parse()?;
+                    #(#push_puncts)*
+                }
+            }
+        } else {
+            quote! {
+                while !input.is_empty() {
+                    #parse_item
+                }
+            }
+        };
+
+        quote! {
+            #struct_def
+            let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
+                #capture_init
+                #joint_token
+                ::std::result::Result::Ok(#struct_expr)
+            };
+            #(#collection_init)*
+            #parse_loop
+            #(#assign_collections)*
         }
     }
     fn compile_matcher(&mut self, matcher: &Matcher) -> TokenStream {
