@@ -64,21 +64,7 @@ impl Capture {
                 quantity = Quantity::Optional;
                 content.parse::<Token![?]>()?;
             } else if content.peek(Token![*]) {
-                content.parse::<Token![*]>()?;
-                if content.peek(token::Bracket) {
-                    let separator_tokens;
-                    let _br = bracketed!(separator_tokens in content);
-                    if separator_tokens.is_empty() {
-                        return Err(syn::Error::new(
-                            separator_tokens.span(),
-                            "expected '[<separator>]' like '[,]'",
-                        ));
-                    }
-                    let separater = Keyword::parse(&separator_tokens, ctx)?;
-                    quantity = Quantity::Many(Some(separater));
-                } else {
-                    return Err(content.error("expected '[<separator>]' like '[,]'"));
-                };
+                quantity = parse_many_quantity(&content, ctx)?;
             }
             if content.peek(Token![:]) {
                 let _colon = content.parse::<Token![:]>()?;
@@ -102,18 +88,7 @@ impl Capture {
                 quantity = Quantity::Optional;
                 content.parse::<Token![?]>()?;
             } else if content.peek(Token![*]) {
-                content.parse::<Token![*]>()?;
-                if content.peek(token::Bracket) {
-                    let separater_tokens;
-                    let _br = bracketed!(separater_tokens in content);
-                    if separater_tokens.is_empty() {
-                        return Err(separater_tokens.error("expected '[<separator>]' like '[,]'"));
-                    }
-                    let separater = Keyword::parse(&separater_tokens, ctx)?;
-                    quantity = Quantity::Many(Some(separater));
-                } else {
-                    return Err(content.error("expected '[<separator>]' like '[,]'"));
-                };
+                quantity = parse_many_quantity(&content, ctx)?;
             }
             let _colon = content.parse::<Token![:]>()?;
             let matcher = Matcher::parse(&content, ctx)?;
@@ -128,6 +103,22 @@ impl Capture {
                 span: start_span.join(end_span).unwrap_or(start_span),
             })
         }
+    }
+}
+
+fn parse_many_quantity(input: ParseStream, ctx: &mut ParseContext) -> syn::Result<Quantity> {
+    input.parse::<Token![*]>()?;
+    if input.peek(token::Bracket) {
+        let separator_tokens;
+        let _br = bracketed!(separator_tokens in input);
+        if separator_tokens.is_empty() {
+            Ok(Quantity::Many(None))
+        } else {
+            let separator = Keyword::parse(&separator_tokens, ctx)?;
+            Ok(Quantity::Many(Some(separator)))
+        }
+    } else {
+        Ok(Quantity::Many(None))
     }
 }
 

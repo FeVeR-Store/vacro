@@ -68,7 +68,7 @@ impl Compiler {
         receiver: &TokenStream,
     ) -> TokenStream {
         // A. 获取要解析的目标类型 (Type) 和对应的 parse trait
-        let (_ty, parse_trait) = match &matcher.kind {
+        let (ty, parse_trait) = match &matcher.kind {
             MatcherKind::Enum { .. } | MatcherKind::SynType(_) => {
                 let ty = self.compile_matcher(matcher);
                 (ty.clone(), quote! {<#ty as ::syn::parse::Parse>})
@@ -112,13 +112,34 @@ impl Compiler {
                     }
                 }
             }
-            Quantity::Many(separator) => {
-                quote! {
-                    {
-                        #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+            Quantity::Many(separator) => match separator {
+                Some(separator) => {
+                    quote! {
+                        {
+                            #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+                        }
                     }
                 }
-            }
+                None => {
+                    quote! {
+                        {
+                            let mut _items = ::std::vec::Vec::<#ty>::new();
+                            while !input.is_empty() {
+                                let _before = input.cursor();
+                                let _parsed = #parse_trait::parse(&input)?;
+                                if input.cursor() == _before {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "iterative capture did not consume any tokens",
+                                    ));
+                                }
+                                _items.push(_parsed);
+                            }
+                            #receiver _items;
+                        }
+                    }
+                }
+            },
         }
     }
 

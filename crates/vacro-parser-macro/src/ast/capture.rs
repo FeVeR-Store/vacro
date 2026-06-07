@@ -412,6 +412,21 @@ mod tests {
         } else {
             panic!("Expected Iter mode");
         }
+
+        let input = quote! { #(tokens*: Ident) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "tokens");
+        assert_eq!(capture.quantity, Quantity::Many(None));
+
+        let input = quote! { #(tokens*[]: Ident) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "tokens");
+        assert_eq!(capture.quantity, Quantity::Many(None));
+
+        let input = quote! { #(tokens*[ ]: Ident) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "tokens");
+        assert_eq!(capture.quantity, Quantity::Many(None));
     }
 
     #[test]
@@ -501,18 +516,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_error_missing_separator() {
+    fn test_parse_empty_separator() {
         let ctx = &mut ParseContext::default();
 
-        // 错误语法: *[] 中间缺少分隔符
+        // 空分隔符代表按 token 连续解析
         let input = quote! { #(args*[]: Ident) };
-        let result = parse_capture(input, ctx);
-
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err().to_string(),
-            "expected '[<separator>]' like '[,]'"
-        );
+        let result = parse_capture(input, ctx).unwrap();
+        assert_eq!(result.quantity, Quantity::Many(None));
     }
 
     #[test]
@@ -844,6 +854,13 @@ mod tests {
         let tokens_iter = compiler.compile_capture(&spec_iter);
         // 生成的代码应该包含 parse_terminated
         assert!(tokens_iter.to_string().contains("parse_terminated"));
+
+        let spec_iter_blank: Capture = parse_capture(quote!(#(x*: Ident)), ctx).unwrap();
+        let tokens_iter_blank = compiler.compile_capture(&spec_iter_blank);
+        let tokens_iter_blank = tokens_iter_blank.to_string();
+        assert!(tokens_iter_blank.contains("Vec"));
+        assert!(tokens_iter_blank.contains("cursor"));
+        assert!(!tokens_iter_blank.contains("parse_terminated"));
     }
 
     #[test]
@@ -861,14 +878,11 @@ mod tests {
     }
 
     #[test]
-    fn test_error_invalid_separator() {
+    fn test_parse_empty_separator_named() {
         let ctx = &mut ParseContext::default();
-        // 错误语法: #(name*[]: Ident) 分隔符为空
+        // 空分隔符代表按 token 连续解析
         let input = quote!(#(name*[]: Ident));
-        let result = parse_capture(input, ctx);
-
-        assert!(result.is_err());
-        // 具体的错误信息取决于 bracketed! 空内容的判定
-        assert!(result.unwrap_err().to_string().contains("expected"));
+        let result = parse_capture(input, ctx).unwrap();
+        assert_eq!(result.quantity, Quantity::Many(None));
     }
 }

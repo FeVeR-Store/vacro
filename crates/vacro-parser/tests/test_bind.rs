@@ -97,6 +97,21 @@ fn test_enum_capture() {
     }
 }
 
+#[test]
+fn test_blank_separated_iter_capture() {
+    let input = quote!(message hello world and summary short note);
+    bind!(
+        let res = (input -> message #(message*: Ident) and summary #(summary*: Ident));
+    );
+
+    let output = res.unwrap();
+    let message: Vec<_> = output.message.iter().map(ToString::to_string).collect();
+    let summary: Vec<_> = output.summary.iter().map(ToString::to_string).collect();
+
+    assert_eq!(message, vec!["hello", "world"]);
+    assert_eq!(summary, vec!["short", "note"]);
+}
+
 // 测试自定义关键字与符号
 #[test]
 fn test_custom_keyword_symbol() {

@@ -7,6 +7,7 @@ use crate::{
         node::{Pattern, PatternKind},
     },
     codegen::{logic::Compiler, output::generate_output},
+    transform::lookahead::inject_lookahead,
 };
 
 impl Compiler {
@@ -28,6 +29,7 @@ impl Compiler {
                 delimiter,
                 children,
             } => {
+                let children = inject_lookahead(children.clone());
                 let mac: proc_macro2::TokenStream = match delimiter {
                     Delimiter::Brace => quote! { ::syn::braced! },
                     Delimiter::Bracket => quote! { ::syn::bracketed! },

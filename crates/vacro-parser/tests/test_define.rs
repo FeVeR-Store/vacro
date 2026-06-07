@@ -50,6 +50,22 @@ fn test_complex_struct() {
     assert!(res_short.ret.is_none());
 }
 
+define!(MessageSummary:
+    message #(message*: Ident) and summary #(summary*: Ident)
+);
+
+#[test]
+fn test_blank_separated_iter_capture() {
+    let input = quote!(message hello world and summary short note);
+    let res: MessageSummary = parse2(input).unwrap();
+
+    let message: Vec<_> = res.message.iter().map(ToString::to_string).collect();
+    let summary: Vec<_> = res.summary.iter().map(ToString::to_string).collect();
+
+    assert_eq!(message, vec!["hello", "world"]);
+    assert_eq!(summary, vec!["short", "note"]);
+}
+
 // 3. 多态测试 (Enum Generation)
 // 测试 define! 是否能正确生成并使用枚举
 // 格式：#(data: PolyEnum { Id: Ident, Num: LitInt })
