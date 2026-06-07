@@ -184,6 +184,39 @@ fn test_define_enum_generation() {
     }
 }
 
+define!(CommandDescriptor:
+    #(token*: CommandToken {
+        Literal: Ident,
+        Variable: < #(variable: Ident) >,
+        PipeVariable: | #(variable: Ident) |,
+        AtVariable: @ #(variable: Ident) @,
+    })
+);
+
+#[test]
+fn test_poly_capture_pattern_variant_trailing_comma() {
+    let input = quote!(literal < angle > | pipe | @ at @);
+    let res: CommandDescriptor = parse2(input).unwrap();
+
+    assert_eq!(res.token.len(), 4);
+    match &res.token[0] {
+        CommandToken::Literal(ident) => assert_eq!(ident.to_string(), "literal"),
+        _ => panic!("1st token should be Literal"),
+    }
+    match &res.token[1] {
+        CommandToken::Variable { variable } => assert_eq!(variable.to_string(), "angle"),
+        _ => panic!("2nd token should be Variable"),
+    }
+    match &res.token[2] {
+        CommandToken::PipeVariable { variable } => assert_eq!(variable.to_string(), "pipe"),
+        _ => panic!("3rd token should be PipeVariable"),
+    }
+    match &res.token[3] {
+        CommandToken::AtVariable { variable } => assert_eq!(variable.to_string(), "at"),
+        _ => panic!("4th token should be AtVariable"),
+    }
+}
+
 // 4. 关联捕获
 define!(MyRoles: {
     #(roles*[,]: #(ident: Ident))
