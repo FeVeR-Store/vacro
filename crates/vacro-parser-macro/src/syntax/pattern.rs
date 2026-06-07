@@ -114,7 +114,7 @@ impl Pattern {
                 let mut collect = TokenStream::new();
                 let mut punct: Punct = input.parse()?;
                 let start_span = punct.span();
-                while punct.spacing() == Spacing::Joint {
+                while punct.spacing() == Spacing::Joint && !input.is_empty() {
                     if input.peek(Token![#]) {
                         break;
                     }
