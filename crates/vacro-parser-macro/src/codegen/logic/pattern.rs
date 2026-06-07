@@ -3,7 +3,8 @@ use quote::quote;
 
 use crate::{
     ast::{
-        keyword::KeywordMap,
+        capture::Quantity,
+        keyword::{Keyword, KeywordMap},
         node::{Pattern, PatternKind},
     },
     codegen::{logic::Compiler, output::generate_output},
@@ -11,6 +12,36 @@ use crate::{
 };
 
 impl Compiler {
+    fn compile_edge_peek(&self, keyword: &Keyword) -> TokenStream {
+        match keyword {
+            Keyword::Custom {
+                punctuation: true,
+                content,
+                ..
+            } => {
+                let parse_punct = content.chars().map(|ch| {
+                    let punct = Keyword::Rust(ch.to_string());
+                    quote! {
+                        _edge_fork.parse::<#punct>()?;
+                    }
+                });
+
+                quote! {
+                    {
+                        let _edge_fork = input.fork();
+                        (|| -> ::syn::Result<()> {
+                            #(#parse_punct)*
+                            ::std::result::Result::Ok(())
+                        })().is_ok()
+                    }
+                }
+            }
+            _ => quote! {
+                input.peek(#keyword)
+            },
+        }
+    }
+
     pub fn compile_pattern(&mut self, pattern: &Pattern) -> TokenStream {
         let mut tokens = TokenStream::new();
         let mut keyword_map = KeywordMap::new();
@@ -69,21 +100,37 @@ impl Compiler {
                     generate_output(&captures, None, None);
                 let cap_tokens = self.compile_capture(capture);
                 match &capture.edge {
-                    Some(keyword) => {
+                    Some(keyword) if !matches!(capture.quantity, Quantity::Optional) => {
+                        let edge_peek = self.compile_edge_peek(keyword);
                         // 3. Lookahead 逻辑，现在追加到 body_stream
                         body_stream.extend(quote! {
                             {
-                                let mut _input = ::proc_macro2::TokenStream::new();
-                                while !input.peek(#keyword) {
-                                    _input.extend(::std::iter::once(
-                                        input.parse::<::proc_macro2::TokenTree>()?
-                                    ));
+                                let mut _input_tokens = ::std::vec::Vec::<::proc_macro2::TokenTree>::new();
+                                while !(#edge_peek) {
+                                    _input_tokens.push(input.parse::<::proc_macro2::TokenTree>()?);
                                 }
+                                if let ::std::option::Option::Some(::proc_macro2::TokenTree::Punct(_punct)) =
+                                    _input_tokens.last_mut()
+                                {
+                                    if _punct.spacing() == ::proc_macro2::Spacing::Joint {
+                                        let mut _alone = ::proc_macro2::Punct::new(
+                                            _punct.as_char(),
+                                            ::proc_macro2::Spacing::Alone,
+                                        );
+                                        _alone.set_span(_punct.span());
+                                        *_punct = _alone;
+                                    }
+                                }
+                                let _input = _input_tokens
+                                    .into_iter()
+                                    .collect::<::proc_macro2::TokenStream>();
 
                                 #struct_def
                                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                                     #capture_init
-                                    #cap_tokens
+                                    {
+                                        #cap_tokens
+                                    }
                                     ::std::result::Result::Ok(#struct_expr)
                                 };
                                 // 这里解析刚才吃进去的流
@@ -91,7 +138,7 @@ impl Compiler {
                             }
                         });
                     }
-                    None => {
+                    Some(_) | None => {
                         body_stream.extend(quote! {
                             {
                                 #cap_tokens

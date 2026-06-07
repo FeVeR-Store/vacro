@@ -125,8 +125,8 @@ fn parse_many_quantity(input: ParseStream, ctx: &mut ParseContext) -> syn::Resul
 impl Matcher {
     pub fn parse(input: syn::parse::ParseStream, ctx: &mut ParseContext) -> syn::Result<Self> {
         let cap = if input.peek(Token![#]) {
-            // #{...} 字面量捕获：将大括号内容作为字面量模式
             if input.peek2(token::Brace) {
+                // #{...} 字面量捕获：将大括号内容作为字面量模式
                 let _hash: Token![#] = input.parse()?;
                 let start_span = _hash.span;
                 let content;
@@ -138,14 +138,12 @@ impl Matcher {
                 } else {
                     vec![inner]
                 };
-                let matcher = Matcher {
+                Matcher {
                     kind: MatcherKind::Nested(children),
                     span: start_span.join(end_span).unwrap_or(start_span),
-                };
-                return Ok(matcher);
-            }
-            // 仅是一个 #，作为符号
-            if !input.peek2(token::Paren) {
+                }
+            } else if !input.peek2(token::Paren) {
+                // 仅是一个 #，作为符号
                 let _hash_tag = input.parse::<Token![#]>()?;
                 let start_span = _hash_tag.span;
                 let pattern: Pattern = Pattern::parse(input)?;
@@ -155,29 +153,29 @@ impl Matcher {
                     span: _hash_tag.span,
                     meta: None,
                 };
-                let matcher = Matcher {
+                Matcher {
                     kind: MatcherKind::Nested(vec![hash_tag_pattern, pattern]),
                     span: start_span.join(end_span).unwrap_or(start_span),
-                };
-                return Ok(matcher);
-            }
-            // 如果是 #(...)，则解析为 Capture
-            let capture = Capture::parse(input, ctx)?;
-            let span = capture.span;
-            if let MatcherKind::Enum { .. } = &capture.matcher.kind {
-                Matcher {
-                    kind: capture.matcher.kind,
-                    span,
                 }
             } else {
-                let pattern = Pattern {
-                    kind: PatternKind::Capture(Box::new(capture)),
-                    span,
-                    meta: None,
-                };
-                Matcher {
-                    kind: MatcherKind::Nested(vec![pattern]),
-                    span,
+                // 如果是 #(...)，则解析为 Capture
+                let capture = Capture::parse(input, ctx)?;
+                let span = capture.span;
+                if let MatcherKind::Enum { .. } = &capture.matcher.kind {
+                    Matcher {
+                        kind: capture.matcher.kind,
+                        span,
+                    }
+                } else {
+                    let pattern = Pattern {
+                        kind: PatternKind::Capture(Box::new(capture)),
+                        span,
+                        meta: None,
+                    };
+                    Matcher {
+                        kind: MatcherKind::Nested(vec![pattern]),
+                        span,
+                    }
                 }
             }
         } else if input.peek(Ident) {
