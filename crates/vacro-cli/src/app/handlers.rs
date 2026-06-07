@@ -53,19 +53,17 @@ fn handle_normal_mode(app: &mut App, key: KeyEvent) {
                 app.detail_state.select(Some(0));
             }
         }
-        KeyCode::End => {
-            if app.active_view == ActiveView::TraceViewer {
-                // 这里需要引用 widgets 模块的逻辑，或者在 App 中封装好获取 count 的方法
-                // 由于 handler 是 App 的子模块，可以直接调用 crate::widgets
-                let count = crate::widgets::TraceViewer::generate_items(
-                    &app.filtered_log_entries,
-                    &app.expanded_items,
-                    None,
-                )
-                .0
-                .len();
-                app.detail_state.select(Some(count.saturating_sub(1)));
-            }
+        KeyCode::End if app.active_view == ActiveView::TraceViewer => {
+            // 这里需要引用 widgets 模块的逻辑，或者在 App 中封装好获取 count 的方法
+            // 由于 handler 是 App 的子模块，可以直接调用 crate::widgets
+            let count = crate::widgets::TraceViewer::generate_items(
+                &app.filtered_log_entries,
+                &app.expanded_items,
+                None,
+            )
+            .0
+            .len();
+            app.detail_state.select(Some(count.saturating_sub(1)));
         }
         _ => {}
     }
