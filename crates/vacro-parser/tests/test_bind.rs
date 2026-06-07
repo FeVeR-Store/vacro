@@ -112,6 +112,18 @@ fn test_blank_separated_iter_capture() {
     assert_eq!(summary, vec!["short", "note"]);
 }
 
+#[test]
+fn test_anonymous_nested_iter_capture() {
+    let input = quote!(alpha beta gamma);
+    bind!(
+        let res = (input -> #(*: #(token: Ident)));
+    );
+
+    let output = res.unwrap();
+    let tokens: Vec<_> = output.token.iter().map(ToString::to_string).collect();
+    assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+}
+
 // 测试自定义关键字与符号
 #[test]
 fn test_custom_keyword_symbol() {

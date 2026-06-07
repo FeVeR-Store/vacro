@@ -66,6 +66,49 @@ fn test_blank_separated_iter_capture() {
     assert_eq!(summary, vec!["short", "note"]);
 }
 
+define!(AnonymousNestedTokens:
+    #(*: #(token: Ident))
+);
+
+#[test]
+fn test_anonymous_nested_iter_capture() {
+    let input = quote!(alpha beta gamma);
+    let res: AnonymousNestedTokens = parse2(input).unwrap();
+
+    let tokens: Vec<_> = res.token.iter().map(ToString::to_string).collect();
+    assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+}
+
+define!(AnonymousNestedPairs:
+    #(*: #(name: Ident) as #(ty: Type))
+);
+
+#[test]
+fn test_anonymous_nested_iter_multi_field_capture() {
+    let input = quote!(alpha as i32 beta as String);
+    let res: AnonymousNestedPairs = parse2(input).unwrap();
+
+    let names: Vec<_> = res.name.iter().map(ToString::to_string).collect();
+    let types: Vec<_> = res.ty.iter().map(|ty| quote! {#ty}.to_string()).collect();
+
+    assert_eq!(names, vec!["alpha", "beta"]);
+    assert_eq!(types, vec!["i32", "String"]);
+}
+
+define!(AnonymousNestedCommaTokens:
+    #(*[,]: #(token: Ident))
+);
+
+#[test]
+fn test_anonymous_nested_iter_punctuated_capture() {
+    let input = quote!(alpha, beta, gamma);
+    let res: AnonymousNestedCommaTokens = parse2(input).unwrap();
+
+    let tokens: Vec<_> = res.token.iter().map(ToString::to_string).collect();
+    assert_eq!(tokens, vec!["alpha", "beta", "gamma"]);
+    assert_eq!(res.token.len(), 3);
+}
+
 // 3. 多态测试 (Enum Generation)
 // 测试 define! 是否能正确生成并使用枚举
 // 格式：#(data: PolyEnum { Id: Ident, Num: LitInt })
