@@ -18,6 +18,58 @@ use crate::{
     syntax::{context::ParseContext, keyword::parse_keyword},
 };
 
+fn is_rust_punctuation(content: &str) -> bool {
+    matches!(
+        content,
+        "&" | "&&"
+            | "&="
+            | "@"
+            | "^"
+            | "^="
+            | ":"
+            | ","
+            | "$"
+            | "."
+            | ".."
+            | "..."
+            | "..="
+            | "="
+            | "=="
+            | "=>"
+            | ">="
+            | ">"
+            | "<-"
+            | "<="
+            | "<"
+            | "-"
+            | "-="
+            | "!="
+            | "!"
+            | "|"
+            | "|="
+            | "||"
+            | "::"
+            | "%"
+            | "%="
+            | "+"
+            | "+="
+            | "#"
+            | "?"
+            | "->"
+            | ";"
+            | "<<"
+            | "<<="
+            | ">>"
+            | ">>="
+            | "/"
+            | "/="
+            | "*"
+            | "*="
+            | "~"
+            | "_"
+    )
+}
+
 impl Pattern {
     pub fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut ctx = ParseContext::default();
@@ -114,10 +166,21 @@ impl Pattern {
                 let mut collect = TokenStream::new();
                 let mut punct: Punct = input.parse()?;
                 let start_span = punct.span();
+                let mut content = String::new();
                 while punct.spacing() == Spacing::Joint && !input.is_empty() {
                     if input.peek(Token![#]) {
                         break;
                     }
+                    let fork = input.fork();
+                    if let Ok(next) = fork.parse::<Punct>() {
+                        let mut candidate = content.clone();
+                        candidate.push(punct.as_char());
+                        candidate.push(next.as_char());
+                        if fork.peek(Token![#]) && !is_rust_punctuation(&candidate) {
+                            break;
+                        }
+                    }
+                    content.push(punct.as_char());
                     collect.append(punct);
                     punct = input.parse()?;
                 }

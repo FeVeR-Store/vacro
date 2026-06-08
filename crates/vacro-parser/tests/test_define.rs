@@ -1,3 +1,4 @@
+use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
@@ -214,6 +215,75 @@ fn test_poly_capture_pattern_variant_trailing_comma() {
     match &res.token[3] {
         CommandToken::AtVariable { variable } => assert_eq!(variable.to_string(), "at"),
         _ => panic!("4th token should be AtVariable"),
+    }
+}
+
+define!(ComplexCommandDescriptorLiteral:
+    #(token*: ComplexCommandTokenLiteral {
+        Literal: Ident,
+        Variable: <#(variable: Ident)#(descriptor?: ComplexDescriptorLiteral {
+            Optional: #{?},
+            Required: #{!}
+        }): #(?: #{:} #(ret: Type))>:#(flag: TokenStream),
+    })
+);
+
+#[test]
+fn test_poly_capture_optional_nested_literal_colon_edge() {
+    let input = quote!(<value?: : String>:flag);
+    let res: ComplexCommandDescriptorLiteral = parse2(input).unwrap();
+
+    assert_eq!(res.token.len(), 1);
+    match &res.token[0] {
+        ComplexCommandTokenLiteral::Variable {
+            variable,
+            descriptor,
+            ret,
+            flag,
+        } => {
+            assert_eq!(variable.to_string(), "value");
+            assert!(matches!(
+                descriptor,
+                Some(ComplexDescriptorLiteral::Optional)
+            ));
+            let ret = ret.as_ref().expect("ret should be parsed");
+            assert_eq!(quote! {#ret}.to_string(), "String");
+            assert_eq!(quote! {#flag}.to_string(), "flag");
+        }
+        _ => panic!("token should be Variable"),
+    }
+}
+
+define!(ComplexCommandDescriptorBare:
+    #(token*: ComplexCommandTokenBare {
+        Literal: Ident,
+        Variable: <#(variable: Ident)#(descriptor?: ComplexDescriptorBare {
+            Optional: #{?},
+            Required: #{!}
+        }): #(?: : #(ret: Type))>:#(flag: TokenStream),
+    })
+);
+
+#[test]
+fn test_poly_capture_optional_nested_bare_colon_edge() {
+    let input = quote!(<value!: : String>:flag);
+    let res: ComplexCommandDescriptorBare = parse2(input).unwrap();
+
+    assert_eq!(res.token.len(), 1);
+    match &res.token[0] {
+        ComplexCommandTokenBare::Variable {
+            variable,
+            descriptor,
+            ret,
+            flag,
+        } => {
+            assert_eq!(variable.to_string(), "value");
+            assert!(matches!(descriptor, Some(ComplexDescriptorBare::Required)));
+            let ret = ret.as_ref().expect("ret should be parsed");
+            assert_eq!(quote! {#ret}.to_string(), "String");
+            assert_eq!(quote! {#flag}.to_string(), "flag");
+        }
+        _ => panic!("token should be Variable"),
     }
 }
 

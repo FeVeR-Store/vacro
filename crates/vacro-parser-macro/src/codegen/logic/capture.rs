@@ -104,12 +104,22 @@ impl Compiler {
                 }
             }
             Quantity::Optional => {
-                quote! {
-                    {
-                        let _fork = input.fork();
-                        if let ::std::result::Result::Ok(_parsed) = #parse_trait::parse(&_fork) {
-                            #receiver ::std::option::Option::Some(_parsed);
-                            ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                if matches!(matcher.kind, MatcherKind::Enum { .. }) {
+                    quote! {
+                        {
+                            if let ::std::result::Result::Ok(_parsed) = #parse_trait::parse(input) {
+                                #receiver ::std::option::Option::Some(_parsed);
+                            }
+                        }
+                    }
+                } else {
+                    quote! {
+                        {
+                            let _fork = input.fork();
+                            if let ::std::result::Result::Ok(_parsed) = #parse_trait::parse(&_fork) {
+                                #receiver ::std::option::Option::Some(_parsed);
+                                ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                            }
                         }
                     }
                 }
@@ -461,8 +471,8 @@ impl Compiler {
             EnumVariant::Type { ident, ty } => {
                 quote! {
                     let _fork = input.fork();
-                    if let ::std::result::Result::Ok(v) = <#ty as ::syn::parse::Parse>::parse(&_fork) {
-                        ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
+                    if <#ty as ::syn::parse::Parse>::parse(&_fork).is_ok() {
+                        let v = <#ty as ::syn::parse::Parse>::parse(input)?;
                         return ::std::result::Result::Ok(#enum_name::#ident(v));
                     };
                 }
@@ -492,9 +502,8 @@ impl Compiler {
                         #pattern_tokens
                         return ::std::result::Result::Ok(#enum_name::#ident #enum_expr);
                     };
-                    if let ::std::result::Result::Ok(v) = parser(&_fork) {
-                        ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
-                        return ::std::result::Result::Ok(v);
+                    if parser(&_fork).is_ok() {
+                        return parser(input);
                     };
                 }
             }
