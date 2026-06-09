@@ -116,9 +116,9 @@ impl Compiler {
                     quote! {
                         {
                             let _fork = input.fork();
-                            if let ::std::result::Result::Ok(_parsed) = #parse_trait::parse(&_fork) {
+                            if #parse_trait::parse(&_fork).is_ok() {
+                                let _parsed = #parse_trait::parse(input)?;
                                 #receiver ::std::option::Option::Some(_parsed);
-                                ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
                             }
                         }
                     }
@@ -126,9 +126,52 @@ impl Compiler {
             }
             Quantity::Many(separator) => match separator {
                 Some(separator) => {
-                    quote! {
-                        {
-                            #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+                    if matches!(matcher.kind, MatcherKind::Enum { .. }) {
+                        quote! {
+                            {
+                                let mut _items = ::syn::punctuated::Punctuated::<#ty, #separator>::new();
+                                while !input.is_empty() {
+                                    let mut _input = ::proc_macro2::TokenStream::new();
+                                    let mut _angle_depth = 0usize;
+                                    while !input.is_empty() && !(_angle_depth == 0 && input.peek(#separator)) {
+                                        let _tree = input.parse::<::proc_macro2::TokenTree>()?;
+                                        match &_tree {
+                                            ::proc_macro2::TokenTree::Punct(_punct)
+                                                if _punct.as_char() == '<' =>
+                                            {
+                                                _angle_depth += 1;
+                                            }
+                                            ::proc_macro2::TokenTree::Punct(_punct)
+                                                if _punct.as_char() == '>' =>
+                                            {
+                                                _angle_depth = _angle_depth.saturating_sub(1);
+                                            }
+                                            _ => {}
+                                        }
+                                        _input.extend(::std::iter::once(_tree));
+                                    }
+                                    if _input.is_empty() {
+                                        return ::std::result::Result::Err(::syn::Error::new(
+                                            input.span(),
+                                            "expected iterative capture item before separator",
+                                        ));
+                                    }
+                                    let _parsed = ::syn::parse::Parser::parse2(#parse_trait::parse, _input)?;
+                                    _items.push_value(_parsed);
+                                    if input.is_empty() {
+                                        break;
+                                    }
+                                    let _punct: #separator = input.parse()?;
+                                    _items.push_punct(_punct);
+                                }
+                                #receiver _items;
+                            }
+                        }
+                    } else {
+                        quote! {
+                            {
+                                #receiver input.parse_terminated(#parse_trait::parse, #separator)?;
+                            }
                         }
                     }
                 }
@@ -271,14 +314,17 @@ impl Compiler {
                 ::std::result::Result::Ok(#struct_expr)
             };
             let _fork = input.fork();
-            match _parser(&_fork) {
-                ::std::result::Result::Ok(output) => {
-                    ::syn::parse::discouraged::Speculative::advance_to(input, &_fork);
-                    #(#assigns_ok)*
+            if _parser(&_fork).is_ok() {
+                match _parser(input) {
+                    ::std::result::Result::Ok(output) => {
+                        #(#assigns_ok)*
+                    }
+                    ::std::result::Result::Err(err) => {
+                        return ::std::result::Result::Err(err);
+                    }
                 }
-                ::std::result::Result::Err(_) => {
-                    #(#assigns_err)*
-                }
+            } else {
+                #(#assigns_err)*
             }
         }
     }

@@ -287,6 +287,96 @@ fn test_poly_capture_optional_nested_bare_colon_edge() {
     }
 }
 
+define!(
+    #[derive(Debug)]
+    pub CommandDescriptorWithOptionalFlag:
+    #(token*: CommandTokenWithOptionalFlag {
+        Literal: Ident,
+        Variable: <#(variable: Ident)#(descriptor?: CommandDescriptorKind {
+            Optional: #{?},
+            Required: #{!}
+        }) #(?: #{:} #(ty: Type))>#(?: #{:} #(flag: TokenStream)),
+    })
+);
+
+define!(
+    #[derive(Debug)]
+    pub CliWithCommandDescriptor: #(executable: Ident) {
+        #(sub_command*[,]: CommandWithDescriptor {
+            SubCommand: CliWithCommandDescriptor,
+            Arg: #(@: CommandDescriptorWithOptionalFlag)
+        })
+    }
+);
+
+#[test]
+fn test_poly_capture_optional_flag_inside_recursive_enum_list() {
+    let input = quote! {
+        git {
+            commit <message>:-m,
+            clone <message: String>,
+        }
+    };
+    let res: CliWithCommandDescriptor = parse2(input).unwrap();
+
+    assert_eq!(res.executable.to_string(), "git");
+    assert_eq!(res.sub_command.len(), 2);
+
+    let CommandWithDescriptor::Arg(commit) = &res.sub_command[0] else {
+        panic!("1st command should be an arg descriptor");
+    };
+    assert_eq!(commit.token.len(), 2);
+    match &commit.token[1] {
+        CommandTokenWithOptionalFlag::Variable {
+            variable, ty, flag, ..
+        } => {
+            assert_eq!(variable.to_string(), "message");
+            assert!(ty.is_none());
+            assert_eq!(quote! {#flag}.to_string(), "- m");
+        }
+        _ => panic!("2nd commit token should be a variable"),
+    }
+
+    let CommandWithDescriptor::Arg(clone) = &res.sub_command[1] else {
+        panic!("2nd command should be an arg descriptor");
+    };
+    assert_eq!(clone.token.len(), 2);
+    match &clone.token[1] {
+        CommandTokenWithOptionalFlag::Variable {
+            variable, ty, flag, ..
+        } => {
+            assert_eq!(variable.to_string(), "message");
+            let ty = ty.as_ref().expect("type should be parsed");
+            assert_eq!(quote! {#ty}.to_string(), "String");
+            assert!(flag.is_none());
+        }
+        _ => panic!("2nd clone token should be a variable"),
+    }
+}
+
+#[test]
+fn test_poly_capture_optional_type_with_generic_comma_in_recursive_enum_list() {
+    let input = quote! {
+        git {
+            clone <message: HashMap<String, Vec<u8>>>
+        }
+    };
+    let res: CliWithCommandDescriptor = parse2(input).unwrap();
+
+    assert_eq!(res.sub_command.len(), 1);
+    let CommandWithDescriptor::Arg(clone) = &res.sub_command[0] else {
+        panic!("command should be an arg descriptor");
+    };
+    match &clone.token[1] {
+        CommandTokenWithOptionalFlag::Variable { ty, flag, .. } => {
+            let ty = ty.as_ref().expect("type should be parsed");
+            assert_eq!(quote! {#ty}.to_string(), "HashMap < String , Vec < u8 > >");
+            assert!(flag.is_none());
+        }
+        _ => panic!("2nd token should be a variable"),
+    }
+}
+
 // 4. 关联捕获
 define!(MyRoles: {
     #(roles*[,]: #(ident: Ident))
