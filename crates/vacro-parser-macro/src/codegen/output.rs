@@ -117,7 +117,7 @@ pub fn generate_example(
                     if *optional { "?" } else { "" }
                 );
                 if is_extra {
-                    format!("{}\n\n{}{}\n\n{}", "```", inner, suffix, "```")
+                    format!("{}\n\n{}{}\n\n{}", "```ignore", inner, suffix, "```")
                 } else if is_block {
                     format!(" {}{} ", inner, suffix)
                 } else {
@@ -150,7 +150,10 @@ pub fn generate_example(
                 example,
             } => {
                 let (inner, mut extra) = generate_example(example, is_block, true, false);
-                extra_example.push(format!("```\n{} {{\n{}\n}}\n```\n", syntex_name, inner));
+                extra_example.push(format!(
+                    "```ignore\n{} {{\n{}\n}}\n```\n",
+                    syntex_name, inner
+                ));
 
                 extra_example.append(&mut extra);
                 if is_extra {
@@ -198,6 +201,7 @@ pub fn generate_example(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::capture::ExampleItem;
     use proc_macro2::Span;
     use syn::{parse_quote, token::Pub};
 
@@ -302,5 +306,42 @@ mod tests {
 
         // 期望: MyEmpty {}
         assert!(expr_str.contains("MyEmpty"));
+    }
+
+    #[test]
+    fn test_generate_example_marks_extra_blocks_as_ignored() {
+        let items = vec![ExampleItem::Block {
+            optional: false,
+            example: vec![ExampleItem::Capture {
+                name: "item".to_string(),
+                ty: "Ident".to_string(),
+            }],
+            iter: String::new(),
+        }];
+
+        let (example, extra) = generate_example(&items, false, true, false);
+
+        assert!(example.starts_with("```ignore"));
+        assert!(!example.starts_with("```\n"));
+        assert!(extra.is_empty());
+    }
+
+    #[test]
+    fn test_generate_example_marks_poly_examples_as_ignored() {
+        let items = vec![ExampleItem::Poly {
+            name: "polymorphic".to_string(),
+            syntex_name: "Polymorphic".to_string(),
+            example: vec![ExampleItem::Capture {
+                name: "LitInt".to_string(),
+                ty: "syn::LitInt".to_string(),
+            }],
+        }];
+
+        let (_example, extra) = generate_example(&items, false, false, false);
+
+        assert_eq!(extra.len(), 1);
+        assert!(extra[0].starts_with("```ignore\nPolymorphic {"));
+        assert!(extra[0].contains("LitInt@syn::LitInt,"));
+        assert!(!extra[0].starts_with("```\n"));
     }
 }
