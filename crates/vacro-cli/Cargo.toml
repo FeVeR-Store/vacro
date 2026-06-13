@@ -1,6 +1,6 @@
 [package]
 name = "vacro-cli"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "TUI visualization tool for inspecting Vacro toolkits."
 readme = "README.md"
