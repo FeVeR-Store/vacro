@@ -17,6 +17,8 @@ path = "src/main.rs"
 anyhow = "1.0"
 crossterm = "0.29"
 ratatui = { version = "0.30", features = ["crossterm_0_29"] }
+# ratatui-widgets 0.3.1 conflicts with time 0.3.44 on current stable Rust.
+ratatui-widgets = "=0.3.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 similar = "2.7.0"
