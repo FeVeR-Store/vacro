@@ -41,7 +41,7 @@ Add `vacro` to your `Cargo.toml` and enable the DevX features you need:
 
 ```toml
 [dependencies]
-vacro = { version = "0.2.10", features = ["full"] }
+vacro = { version = "0.2.11", features = ["full"] }
 ```
 
 ### 1. Declarative Parsing (`vacro-parser`)

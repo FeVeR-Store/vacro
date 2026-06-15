@@ -41,7 +41,7 @@ Vacro 被设计为一个模块化框架。你可以使用功能齐全的 `vacro`
 
 ```toml
 [dependencies]
-vacro = { version = "0.2.10", features = ["full"] }
+vacro = { version = "0.2.11", features = ["full"] }
 ```
 
 ### 1. 声明式解析 (`vacro-parser`)

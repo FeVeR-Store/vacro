@@ -17,7 +17,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-vacro-parser = "0.1.15"
+vacro-parser = "0.1.16"
 ```
 
 ## Core Features
@@ -102,10 +102,10 @@ Licensed under either of Apache License, Version 2.0 or MIT license at your opti
 You can use the `help!` macro of `vacro-report` to provide more helpful suggestions for the content. If you are using `vacro`, you only need to enable the `report` feature.
 
 ```toml
-vacro_parser = { version = "0.1.15" }
+vacro_parser = { version = "0.1.16" }
 vacro_report = { version = "0.1.3", features = ["parser"] }
 
-# vacro = { version = "0.2.10", features = ["parser", "report"] }
+# vacro = { version = "0.2.11", features = ["parser", "report"] }
 ```
 
 ```rust
