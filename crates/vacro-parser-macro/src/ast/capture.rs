@@ -47,6 +47,9 @@ pub enum MatcherKind {
     /// 标准 Syn 类型 (e.g. `Ident`, `Type`)
     SynType(syn::Type),
 
+    /// 收集 TokenStream，直到当前层级结束、遇到单个终止符或后继 capture 成功
+    TokenStreamCollect { trailer: CollectTrailer },
+
     /// 嵌套结构 (e.g. `#( ... )`)
     Nested(Vec<Pattern>),
 
@@ -55,6 +58,14 @@ pub enum MatcherKind {
         enum_name: Type,
         variants: Vec<(EnumVariant, Matcher)>,
     },
+}
+
+#[derive(Clone)]
+#[cfg_attr(any(feature = "extra-traits", test), derive(Debug))]
+pub enum CollectTrailer {
+    End,
+    Keyword(Keyword),
+    Capture(Box<Capture>),
 }
 
 #[derive(Clone)]
@@ -149,6 +160,16 @@ impl Matcher {
                     .map(|def| vec![def])
                     .unwrap_or_default()
                 // 处理叶子节点：只有 Named 和 Inline 产生字段
+            }
+            MatcherKind::TokenStreamCollect { trailer } => {
+                let ty: Type = syn::parse_quote!(::proc_macro2::TokenStream);
+                let mut fields = generate_captures(&ty, binder)
+                    .map(|def| vec![def])
+                    .unwrap_or_default();
+                if let CollectTrailer::Capture(capture) = trailer {
+                    fields.extend(capture.collect_captures());
+                }
+                fields
             }
 
             MatcherKind::Nested(children) => {
@@ -315,6 +336,17 @@ impl Matcher {
                     ty: quote! {#ty}.to_string(),
                 }]
             }
+            MatcherKind::TokenStreamCollect { trailer } => {
+                let suffix = match trailer {
+                    CollectTrailer::End => "..".to_string(),
+                    CollectTrailer::Keyword(until) => format!("..[{}]", until),
+                    CollectTrailer::Capture(_) => "..|#(...)".to_string(),
+                };
+                vec![ExampleItem::Capture {
+                    name: format!("{name}{suffix}"),
+                    ty: quote! {::proc_macro2::TokenStream}.to_string(),
+                }]
+            }
             MatcherKind::Nested(nest) => nest.iter().flat_map(|n| n.collect_example()).collect(),
         };
         wrapper(items)
@@ -427,6 +459,121 @@ mod tests {
         let capture: Capture = parse_capture(input, ctx).unwrap();
         assert_named(&capture, "tokens");
         assert_eq!(capture.quantity, Quantity::Many(None));
+    }
+
+    #[test]
+    fn test_parse_collect_named() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(token..[:]) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "token");
+        assert_eq!(capture.quantity, Quantity::One);
+        match capture.matcher.kind {
+            MatcherKind::TokenStreamCollect { trailer } => match trailer {
+                CollectTrailer::Keyword(keyword) => {
+                    assert_eq!(keyword, Keyword::Rust(":".to_string()));
+                }
+                _ => panic!("expected keyword trailer"),
+            },
+            _ => panic!("expected TokenStreamCollect"),
+        }
+    }
+
+    #[test]
+    fn test_parse_collect_inline_and_optional() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(@..[:]) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_inline(&capture);
+        assert_eq!(capture.quantity, Quantity::One);
+        assert!(matches!(
+            capture.matcher.kind,
+            MatcherKind::TokenStreamCollect { .. }
+        ));
+
+        let input = quote! { #(token?..[:]) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "token");
+        assert_eq!(capture.quantity, Quantity::Optional);
+        assert!(matches!(
+            capture.matcher.kind,
+            MatcherKind::TokenStreamCollect { .. }
+        ));
+    }
+
+    #[test]
+    fn test_parse_collect_rest() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(token..) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "token");
+        match capture.matcher.kind {
+            MatcherKind::TokenStreamCollect { trailer } => match trailer {
+                CollectTrailer::End => {}
+                _ => panic!("expected end trailer"),
+            },
+            _ => panic!("expected TokenStreamCollect"),
+        }
+    }
+
+    #[test]
+    fn test_parse_collect_capture_trailer() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(token..| #(mode: OptionMode { A: #{:}, B: #{=} })) };
+        let capture: Capture = parse_capture(input, ctx).unwrap();
+        assert_named(&capture, "token");
+        match capture.matcher.kind {
+            MatcherKind::TokenStreamCollect { trailer } => match trailer {
+                CollectTrailer::Capture(capture) => {
+                    assert_named(&capture, "mode");
+                }
+                _ => panic!("expected capture trailer"),
+            },
+            _ => panic!("expected TokenStreamCollect"),
+        }
+    }
+
+    #[test]
+    fn test_parse_collect_reject_anonymous() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #( .. [:] ) };
+        let result = parse_capture(input, ctx);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "collected token capture requires a named or inline binder"
+        );
+    }
+
+    #[test]
+    fn test_parse_collect_reject_iter_combo() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(token*..[:]) };
+        let result = parse_capture(input, ctx);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "collected token capture cannot be combined with iterative capture"
+        );
+    }
+
+    #[test]
+    fn test_parse_collect_reject_typed_suffix() {
+        let ctx = &mut ParseContext::default();
+
+        let input = quote! { #(token..[:]: Ident) };
+        let result = parse_capture(input, ctx);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "unexpected tokens after collected token capture"
+        );
     }
 
     #[test]
@@ -861,6 +1008,32 @@ mod tests {
         assert!(tokens_iter_blank.contains("Vec"));
         assert!(tokens_iter_blank.contains("cursor"));
         assert!(!tokens_iter_blank.contains("parse_terminated"));
+
+        let spec_collect: Capture = parse_capture(quote!(#(x..[:])), ctx).unwrap();
+        let tokens_collect = compiler.compile_capture(&spec_collect).to_string();
+        assert!(tokens_collect.contains("TokenStream"));
+        assert!(tokens_collect.contains("TokenTree"));
+        assert!(tokens_collect.contains("input . peek"));
+        assert!(tokens_collect.contains("input . parse"));
+        assert!(!tokens_collect.contains("parse_terminated"));
+
+        let spec_collect_optional: Capture = parse_capture(quote!(#(x?..[:])), ctx).unwrap();
+        let tokens_collect_optional = compiler.compile_capture(&spec_collect_optional).to_string();
+        assert!(tokens_collect_optional.contains("Option :: Some"));
+        assert!(tokens_collect_optional.contains("Option :: None"));
+
+        let spec_collect_rest: Capture = parse_capture(quote!(#(x..)), ctx).unwrap();
+        let tokens_collect_rest = compiler.compile_capture(&spec_collect_rest).to_string();
+        assert!(tokens_collect_rest.contains("input . is_empty"));
+
+        let spec_collect_trailer: Capture = parse_capture(
+            quote!(#(x..| #(mode: OptionMode { A: #{:}, B: #{=} }))),
+            ctx,
+        )
+        .unwrap();
+        let tokens_collect_trailer = compiler.compile_capture(&spec_collect_trailer).to_string();
+        assert!(tokens_collect_trailer.contains("let _parser"));
+        assert!(tokens_collect_trailer.contains("expected trailer capture"));
     }
 
     #[test]

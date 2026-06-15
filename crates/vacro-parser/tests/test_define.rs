@@ -2,8 +2,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
     parse::{Parse, Parser},
-    parse2, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member, PatType,
-    Receiver, ReturnType, Stmt, Token, Type,
+    parse2, parse_quote, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member,
+    PatType, Receiver, ReturnType, Stmt, Token, Type,
 };
 use vacro_parser::define;
 
@@ -150,6 +150,113 @@ fn test_anonymous_nested_iter_punctuated_trailing_capture() {
     let tokens: Vec<_> = res.token.iter().map(ToString::to_string).collect();
     assert_eq!(tokens, vec!["alpha", "beta"]);
     assert!(res.token.trailing_punct());
+}
+
+define!(CollectedUntilColon:
+    #(prefix..[:]) #(name: Ident)
+);
+
+#[test]
+fn test_define_collected_until_stopper_consumed() {
+    let input = quote!(-m: message);
+    let res: CollectedUntilColon = parse2(input).unwrap();
+
+    assert_eq!(res.prefix.to_string(), "- m");
+    assert_eq!(res.name.to_string(), "message");
+}
+
+define!(CollectedRest:
+    #(rest..)
+);
+
+#[test]
+fn test_define_collect_rest() {
+    let input = quote!(alpha beta gamma);
+    let res: CollectedRest = parse2(input).unwrap();
+
+    assert_eq!(res.rest.to_string(), "alpha beta gamma");
+}
+
+define!(CollectedOptionalUntilColon:
+    #(prefix?..[:]) #(name: Ident)
+);
+
+#[test]
+fn test_define_optional_collected_until_none_and_some() {
+    let none_input = quote!(: message);
+    let none_res: CollectedOptionalUntilColon = parse2(none_input).unwrap();
+    assert!(none_res.prefix.is_none());
+    assert_eq!(none_res.name.to_string(), "message");
+
+    let some_input = quote!(-m: message);
+    let some_res: CollectedOptionalUntilColon = parse2(some_input).unwrap();
+    assert_eq!(
+        some_res.prefix.as_ref().map(ToString::to_string),
+        Some("- m".to_string())
+    );
+    assert_eq!(some_res.name.to_string(), "message");
+}
+
+define!(CollectedNestedGroupUntilColon:
+    #(prefix..[:]) #(value: Type)
+);
+
+#[test]
+fn test_define_collect_until_ignores_inner_group_stopper() {
+    let input = quote!((a: b): String);
+    let res: CollectedNestedGroupUntilColon = parse2(input).unwrap();
+
+    assert_eq!(res.prefix.to_string(), "(a : b)");
+    assert_eq!(res.value, parse_quote!(String));
+}
+
+define!(CollectedWithMode:
+    #(prefix..| #(mode: CollectMode {
+        Spaced: #{:},
+        Assigned: #{=},
+        Glued: #{+}
+    })) #(name: Ident)
+);
+
+#[test]
+fn test_define_collect_with_trailer_capture() {
+    let input = quote!(-m: message);
+    let res: CollectedWithMode = parse2(input).unwrap();
+
+    assert_eq!(res.prefix.to_string(), "- m");
+    assert!(matches!(res.mode, CollectMode::Spaced));
+    assert_eq!(res.name.to_string(), "message");
+
+    let input = quote!(--flag = value);
+    let res: CollectedWithMode = parse2(input).unwrap();
+
+    assert_eq!(res.prefix.to_string(), "- - flag");
+    assert!(matches!(res.mode, CollectMode::Assigned));
+    assert_eq!(res.name.to_string(), "value");
+}
+
+define!(CollectedOptionalWithMode:
+    #(prefix?..| #(mode: CollectOptionalMode {
+        Spaced: #{:},
+        Assigned: #{=}
+    })) #(name: Ident)
+);
+
+#[test]
+fn test_define_optional_collect_with_trailer_capture() {
+    let input = quote!(: message);
+    let res: CollectedOptionalWithMode = parse2(input).unwrap();
+
+    assert!(res.prefix.is_none());
+    assert!(matches!(res.mode, Some(CollectOptionalMode::Spaced)));
+    assert_eq!(res.name.to_string(), "message");
+
+    let input = quote!(message);
+    let res: CollectedOptionalWithMode = parse2(input).unwrap();
+
+    assert!(res.prefix.is_none());
+    assert!(res.mode.is_none());
+    assert_eq!(res.name.to_string(), "message");
 }
 
 // 3. 多态测试 (Enum Generation)
@@ -375,6 +482,158 @@ fn test_poly_capture_optional_type_with_generic_comma_in_recursive_enum_list() {
         }
         _ => panic!("2nd token should be a variable"),
     }
+}
+
+define!(
+    #[derive(Debug)]
+    pub CollectCliArgument:
+    <#(ident: Ident) #(descriptor?: CollectCliDescriptor {
+        Optional: #{?},
+        Required: #{!},
+    })
+      #(?: #{:} #(ty: CollectCliArgumentType {
+        Type,
+        Iter: #(ty: Type) #(?: [#(sep: TokenStream)])
+    }))>
+);
+
+define!(
+    #[derive(Debug)]
+    pub CollectCliOption:
+    #(token?..| #(mode: CollectCliOptionMode {
+        Spaced: #{:},
+        Assigned: #{=},
+        Glued: #{+}
+    }))
+    #(argument: CollectCliArgument)
+);
+
+define!(
+    #[derive(Debug)]
+    pub CollectCliCommand:
+    #(name: Ident)
+    #(part*: CollectCliCommandPart {
+        Option: #(@: CollectCliOption),
+        Literal: Ident,
+    })
+    #(?: {
+        #(sub_command*[,]: CollectCliCommand)
+    })
+);
+
+define!(
+    #[derive(Debug)]
+    pub CollectCli:
+    #(executable: Ident) {
+        #(command*[,]: CollectCliCommand)
+    }
+);
+
+#[test]
+fn test_collect_capture_cli_option_prefix_single_command() {
+    let input = quote! {
+        git {
+            commit -m:<message?: String>
+        }
+    };
+    let res: CollectCli = parse2(input).unwrap();
+
+    assert_eq!(res.executable.to_string(), "git");
+    assert_eq!(res.command.len(), 1);
+
+    assert_eq!(res.command[0].name.to_string(), "commit");
+    assert_eq!(res.command[0].part.len(), 1);
+    let CollectCliCommandPart::Option(commit) = &res.command[0].part[0] else {
+        panic!("commit part should parse as option");
+    };
+    assert_eq!(
+        commit.token.as_ref().map(ToString::to_string),
+        Some("- m".to_string())
+    );
+    assert!(matches!(commit.mode, Some(CollectCliOptionMode::Spaced)));
+    assert_eq!(commit.argument.ident.to_string(), "message");
+    assert!(matches!(
+        commit.argument.descriptor,
+        Some(CollectCliDescriptor::Optional)
+    ));
+    match commit
+        .argument
+        .ty
+        .as_ref()
+        .expect("commit argument type should exist")
+    {
+        CollectCliArgumentType::Type(ty) => {
+            assert_eq!(quote! {#ty}.to_string(), "String");
+        }
+        _ => panic!("commit argument type should be Type"),
+    }
+}
+
+#[test]
+fn test_collect_capture_cli_bare_argument_single_command() {
+    let input = quote! {
+        git {
+            clone <url: String>
+        }
+    };
+    let res: CollectCli = parse2(input).unwrap();
+
+    assert_eq!(res.executable.to_string(), "git");
+    assert_eq!(res.command.len(), 1);
+    assert_eq!(res.command[0].name.to_string(), "clone");
+    assert_eq!(res.command[0].part.len(), 1);
+    let CollectCliCommandPart::Option(clone) = &res.command[0].part[0] else {
+        panic!("clone part should parse as option");
+    };
+    assert!(clone.token.is_none());
+    assert!(clone.mode.is_none());
+    assert_eq!(clone.argument.ident.to_string(), "url");
+    assert!(clone.argument.descriptor.is_none());
+    match clone
+        .argument
+        .ty
+        .as_ref()
+        .expect("clone argument type should exist")
+    {
+        CollectCliArgumentType::Type(ty) => {
+            assert_eq!(quote! {#ty}.to_string(), "String");
+        }
+        _ => panic!("clone argument type should be Type"),
+    }
+}
+
+#[test]
+fn test_collect_capture_cli_multi_command_repro() {
+    let input = quote! {
+        git {
+            commit -m:<message?: String>,
+            clone <url: String>,
+        }
+    };
+
+    let res: CollectCli = parse2(input).unwrap();
+
+    assert_eq!(res.executable.to_string(), "git");
+    assert_eq!(res.command.len(), 2);
+    assert_eq!(res.command[0].name.to_string(), "commit");
+    assert_eq!(res.command[1].name.to_string(), "clone");
+
+    let CollectCliCommandPart::Option(commit) = &res.command[0].part[0] else {
+        panic!("commit part should parse as option");
+    };
+    assert_eq!(
+        commit.token.as_ref().map(ToString::to_string),
+        Some("- m".to_string())
+    );
+    assert!(matches!(commit.mode, Some(CollectCliOptionMode::Spaced)));
+    assert_eq!(commit.argument.ident.to_string(), "message");
+
+    let CollectCliCommandPart::Option(clone) = &res.command[1].part[0] else {
+        panic!("clone part should parse as option");
+    };
+    assert!(clone.token.is_none());
+    assert!(clone.mode.is_none());
+    assert_eq!(clone.argument.ident.to_string(), "url");
 }
 
 // 4. 关联捕获

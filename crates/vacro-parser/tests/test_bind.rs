@@ -140,6 +140,120 @@ fn test_anonymous_nested_iter_capture() {
 }
 
 #[test]
+fn test_named_collected_until_stopper_capture() {
+    let input = quote!(-m: message);
+    bind!(
+        let res = (input -> #(prefix..[:]) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert_eq!(output.prefix.to_string(), "- m");
+    assert_eq!(output.name.to_string(), "message");
+}
+
+#[test]
+fn test_inline_collected_until_stopper_capture() {
+    let input = quote!(-m: message);
+    bind!(
+        let res = (input -> #(@..[:]) #(@: Ident));
+    );
+
+    let (prefix, name) = res.unwrap();
+    assert_eq!(prefix.to_string(), "- m");
+    assert_eq!(name.to_string(), "message");
+}
+
+#[test]
+fn test_collect_rest_capture() {
+    let input = quote!(alpha beta gamma);
+    bind!(
+        let res = (input -> #(rest..));
+    );
+
+    let output = res.unwrap();
+    assert_eq!(output.rest.to_string(), "alpha beta gamma");
+}
+
+#[test]
+fn test_optional_collected_until_stopper_capture() {
+    let input = quote!(: message);
+    bind!(
+        let res = (input -> #(prefix?..[:]) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert!(output.prefix.is_none());
+    assert_eq!(output.name.to_string(), "message");
+
+    let input = quote!(-m: message);
+    bind!(
+        let res = (input -> #(prefix?..[:]) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert_eq!(
+        output.prefix.as_ref().map(ToString::to_string),
+        Some("- m".to_string())
+    );
+    assert_eq!(output.name.to_string(), "message");
+}
+
+#[test]
+fn test_collect_until_ignores_inner_group_stopper() {
+    let input = quote!((a: b): message);
+    bind!(
+        let res = (input -> #(prefix..[:]) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert_eq!(output.prefix.to_string(), "(a : b)");
+    assert_eq!(output.name.to_string(), "message");
+}
+
+#[test]
+fn test_collect_until_missing_stopper_errors() {
+    let input = quote!(-m message);
+    bind!(
+        let res = (input -> #(prefix..[:]) #(name: Ident));
+    );
+
+    assert!(res.is_err());
+}
+
+#[test]
+fn test_collect_with_trailer_capture() {
+    let input = quote!(-m: message);
+    bind!(
+        let res = (input -> #(prefix..| #(mode: CollectModeBind {
+            Spaced: #{:},
+            Assigned: #{=},
+            Glued: #{+}
+        })) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert_eq!(output.prefix.to_string(), "- m");
+    assert!(matches!(output.mode, CollectModeBind::Spaced));
+    assert_eq!(output.name.to_string(), "message");
+}
+
+#[test]
+fn test_optional_collect_with_trailer_capture() {
+    let input = quote!(: message);
+    bind!(
+        let res = (input -> #(prefix?..| #(mode: CollectModeOptionalBind {
+            Spaced: #{:},
+            Assigned: #{=}
+        })) #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    assert!(output.prefix.is_none());
+    assert!(matches!(output.mode, Some(CollectModeOptionalBind::Spaced)));
+    assert_eq!(output.name.to_string(), "message");
+}
+
+#[test]
 fn test_anonymous_nested_empty_bracket_iter_capture() {
     let input = quote!(alpha as i32 beta as String);
     bind!(
