@@ -10,13 +10,44 @@ use syn::{
 
 use crate::{
     ast::{
-        capture::{Binder, Capture, EnumVariant, Matcher, MatcherKind, Quantity},
+        capture::{Binder, Capture, CollectTrailer, EnumVariant, Matcher, MatcherKind, Quantity},
         keyword::Keyword,
         node::{Pattern, PatternKind},
     },
     scope_context::next_inline_index,
     syntax::context::ParseContext,
 };
+
+fn parse_collect_matcher(
+    input: ParseStream,
+    start_span: proc_macro2::Span,
+    ctx: &mut ParseContext,
+) -> syn::Result<Matcher> {
+    input.parse::<Token![..]>()?;
+    let trailer = if input.peek(token::Bracket) {
+        let stopper_tokens;
+        let _br = bracketed!(stopper_tokens in input);
+        if stopper_tokens.is_empty() {
+            return Err(stopper_tokens.error("expected stopper token inside []"));
+        }
+        let stopper = Keyword::parse(&stopper_tokens, ctx)?;
+        CollectTrailer::Keyword(stopper)
+    } else if input.peek(Token![|]) {
+        input.parse::<Token![|]>()?;
+        if !input.peek(Token![#]) || !input.peek2(token::Paren) {
+            return Err(input.error("expected capture after '|' in collected token capture"));
+        }
+        let capture = Capture::parse(input, ctx)?;
+        CollectTrailer::Capture(Box::new(capture))
+    } else {
+        CollectTrailer::End
+    };
+
+    Ok(Matcher {
+        kind: MatcherKind::TokenStreamCollect { trailer },
+        span: start_span,
+    })
+}
 
 /// 捕获 #(...)
 impl Capture {
@@ -66,7 +97,27 @@ impl Capture {
             } else if content.peek(Token![*]) {
                 quantity = parse_many_quantity(&content, ctx)?;
             }
-            if content.peek(Token![:]) {
+            if content.peek(Token![..]) {
+                if matches!(quantity, Quantity::Many(_)) {
+                    return Err(content.error(
+                        "collected token capture cannot be combined with iterative capture",
+                    ));
+                }
+                let matcher = parse_collect_matcher(&content, start_span, ctx)?;
+                let end_span = matcher.span;
+                if !content.is_empty() {
+                    return Err(content.error("unexpected tokens after collected token capture"));
+                }
+                Ok(Capture {
+                    _hash_tag,
+                    _paren,
+                    binder,
+                    matcher,
+                    quantity,
+                    edge: None,
+                    span: start_span.join(end_span).unwrap_or(start_span),
+                })
+            } else if content.peek(Token![:]) {
                 let _colon = content.parse::<Token![:]>()?;
                 let matcher = Matcher::parse(&content, ctx)?;
                 let end_span = matcher.span;
@@ -89,6 +140,11 @@ impl Capture {
                 content.parse::<Token![?]>()?;
             } else if content.peek(Token![*]) {
                 quantity = parse_many_quantity(&content, ctx)?;
+            }
+            if content.peek(Token![..]) {
+                return Err(
+                    content.error("collected token capture requires a named or inline binder")
+                );
             }
             let _colon = content.parse::<Token![:]>()?;
             let matcher = Matcher::parse(&content, ctx)?;
@@ -249,6 +305,10 @@ impl Matcher {
             let start_span = cap.span;
             match cap.kind {
                 MatcherKind::SynType(_) | MatcherKind::Enum { .. } => Err(syn::Error::new(
+                    input.span(),
+                    format!("Unexpected '{}'", input),
+                )),
+                MatcherKind::TokenStreamCollect { .. } => Err(syn::Error::new(
                     input.span(),
                     format!("Unexpected '{}'", input),
                 )),

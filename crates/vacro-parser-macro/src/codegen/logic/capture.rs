@@ -4,7 +4,9 @@ use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, Ident, LitInt
 
 use crate::{
     ast::{
-        capture::{Binder, Capture, EnumVariant, FieldDef, Matcher, MatcherKind, Quantity},
+        capture::{
+            Binder, Capture, CollectTrailer, EnumVariant, FieldDef, Matcher, MatcherKind, Quantity,
+        },
         node::{Pattern, PatternKind},
     },
     codegen::{logic::Compiler, output::generate_output},
@@ -13,6 +15,20 @@ use crate::{
 };
 
 impl Compiler {
+    fn compile_angle_depth_update(&self, tree: &Ident, depth: &Ident) -> TokenStream {
+        quote! {
+            match &#tree {
+                ::proc_macro2::TokenTree::Punct(_punct) if _punct.as_char() == '<' => {
+                    #depth += 1;
+                }
+                ::proc_macro2::TokenTree::Punct(_punct) if _punct.as_char() == '>' => {
+                    #depth = #depth.saturating_sub(1);
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn compile_capture(&mut self, capture: &Capture) -> TokenStream {
         let mut tokens = TokenStream::new();
         let Capture {
@@ -71,6 +87,10 @@ impl Compiler {
     ) -> TokenStream {
         // A. 获取要解析的目标类型 (Type) 和对应的 parse trait
         let (ty, parse_trait) = match &matcher.kind {
+            MatcherKind::TokenStreamCollect { .. } => {
+                let ty = quote! { ::proc_macro2::TokenStream };
+                (ty.clone(), quote! {<#ty as ::syn::parse::Parse>})
+            }
             MatcherKind::Enum { .. } | MatcherKind::SynType(_) => {
                 let ty = self.compile_matcher(matcher);
                 (ty.clone(), quote! {<#ty as ::syn::parse::Parse>})
@@ -98,12 +118,20 @@ impl Compiler {
 
         // B. 根据数量 (Quantity) 生成解析动作
         match quantity {
-            Quantity::One => {
-                quote! {
-                    #receiver #parse_trait::parse(&input)?;
+            Quantity::One => match &matcher.kind {
+                MatcherKind::TokenStreamCollect { trailer } => {
+                    self.compile_collect_token_stream(trailer, receiver, false)
                 }
-            }
+                _ => {
+                    quote! {
+                        #receiver #parse_trait::parse(&input)?;
+                    }
+                }
+            },
             Quantity::Optional => {
+                if let MatcherKind::TokenStreamCollect { trailer } = &matcher.kind {
+                    return self.compile_collect_token_stream(trailer, receiver, true);
+                }
                 if matches!(matcher.kind, MatcherKind::Enum { .. }) {
                     quote! {
                         {
@@ -176,25 +204,342 @@ impl Compiler {
                     }
                 }
                 None => {
-                    quote! {
-                        {
-                            let mut _items = ::std::vec::Vec::<#ty>::new();
-                            while !input.is_empty() {
-                                let _before = input.cursor();
-                                let _parsed = #parse_trait::parse(&input)?;
-                                if input.cursor() == _before {
-                                    return ::std::result::Result::Err(::syn::Error::new(
-                                        input.span(),
-                                        "iterative capture did not consume any tokens",
-                                    ));
+                    if matches!(matcher.kind, MatcherKind::SynType(_)) {
+                        quote! {
+                            {
+                                let mut _items = ::std::vec::Vec::<#ty>::new();
+                                while !input.is_empty() {
+                                    let _before = input.cursor();
+                                    let _parsed = #parse_trait::parse(&input)?;
+                                    if input.cursor() == _before {
+                                        return ::std::result::Result::Err(::syn::Error::new(
+                                            input.span(),
+                                            "iterative capture did not consume any tokens",
+                                        ));
+                                    }
+                                    _items.push(_parsed);
                                 }
-                                _items.push(_parsed);
+                                #receiver _items;
                             }
-                            #receiver _items;
+                        }
+                    } else {
+                        quote! {
+                            {
+                                let mut _items = ::std::vec::Vec::<#ty>::new();
+                                while !input.is_empty() {
+                                    let _fork = input.fork();
+                                    if #parse_trait::parse(&_fork).is_err() {
+                                        break;
+                                    }
+                                    let _before = input.cursor();
+                                    let _parsed = #parse_trait::parse(&input)?;
+                                    if input.cursor() == _before {
+                                        return ::std::result::Result::Err(::syn::Error::new(
+                                            input.span(),
+                                            "iterative capture did not consume any tokens",
+                                        ));
+                                    }
+                                    _items.push(_parsed);
+                                }
+                                #receiver _items;
+                            }
                         }
                     }
                 }
             },
+        }
+    }
+
+    fn compile_collect_token_stream(
+        &mut self,
+        trailer: &CollectTrailer,
+        receiver: &TokenStream,
+        optional: bool,
+    ) -> TokenStream {
+        let tree = format_ident!("_tree");
+        let angle_depth = format_ident!("_angle_depth");
+        let angle_depth_update = self.compile_angle_depth_update(&tree, &angle_depth);
+
+        match trailer {
+            CollectTrailer::Capture(capture) => {
+                self.compile_collect_token_stream_capture(capture, receiver, optional)
+            }
+            CollectTrailer::Keyword(until) => {
+                let stopper = quote! { #until };
+                if optional {
+                    quote! {
+                        {
+                            let mut _stream = ::proc_macro2::TokenStream::new();
+                            let mut #angle_depth = 0usize;
+                            if input.peek(#stopper) {
+                                let _stopper_token: #stopper = input.parse()?;
+                                #receiver ::std::option::Option::None;
+                            } else {
+                                while !input.is_empty() && !(#angle_depth == 0 && input.peek(#stopper)) {
+                                    let _before = input.cursor();
+                                    let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                                    if input.cursor() == _before {
+                                        return ::std::result::Result::Err(::syn::Error::new(
+                                            input.span(),
+                                            "collected capture did not consume any tokens",
+                                        ));
+                                    }
+                                    #angle_depth_update
+                                    _stream.extend(::std::iter::once(#tree));
+                                }
+                                if input.is_empty() {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "expected stopper token for collected capture",
+                                    ));
+                                }
+                                let _stopper_token: #stopper = input.parse()?;
+                                #receiver ::std::option::Option::Some(_stream);
+                            }
+                        }
+                    }
+                } else {
+                    quote! {
+                        {
+                            let mut _stream = ::proc_macro2::TokenStream::new();
+                            let mut #angle_depth = 0usize;
+                            while !input.is_empty() && !(#angle_depth == 0 && input.peek(#stopper)) {
+                                let _before = input.cursor();
+                                let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                                if input.cursor() == _before {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "collected capture did not consume any tokens",
+                                    ));
+                                }
+                                #angle_depth_update
+                                _stream.extend(::std::iter::once(#tree));
+                            }
+                            if _stream.is_empty() {
+                                return ::std::result::Result::Err(::syn::Error::new(
+                                    input.span(),
+                                    "expected at least one token for collected capture",
+                                ));
+                            }
+                            if input.is_empty() {
+                                return ::std::result::Result::Err(::syn::Error::new(
+                                    input.span(),
+                                    "expected stopper token for collected capture",
+                                ));
+                            }
+                            let _stopper_token: #stopper = input.parse()?;
+                            #receiver _stream;
+                        }
+                    }
+                }
+            }
+            CollectTrailer::End => {
+                if optional {
+                    quote! {
+                        {
+                            if input.is_empty() {
+                                #receiver ::std::option::Option::None;
+                            } else {
+                                let mut _stream = ::proc_macro2::TokenStream::new();
+                                let mut #angle_depth = 0usize;
+                                while !input.is_empty() {
+                                    let _before = input.cursor();
+                                    let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                                    if input.cursor() == _before {
+                                        return ::std::result::Result::Err(::syn::Error::new(
+                                            input.span(),
+                                            "collected capture did not consume any tokens",
+                                        ));
+                                    }
+                                    #angle_depth_update
+                                    _stream.extend(::std::iter::once(#tree));
+                                }
+                                #receiver ::std::option::Option::Some(_stream);
+                            }
+                        }
+                    }
+                } else {
+                    quote! {
+                        {
+                            let mut _stream = ::proc_macro2::TokenStream::new();
+                            let mut #angle_depth = 0usize;
+                            while !input.is_empty() {
+                                let _before = input.cursor();
+                                let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                                if input.cursor() == _before {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "collected capture did not consume any tokens",
+                                    ));
+                                }
+                                #angle_depth_update
+                                _stream.extend(::std::iter::once(#tree));
+                            }
+                            if _stream.is_empty() {
+                                return ::std::result::Result::Err(::syn::Error::new(
+                                    input.span(),
+                                    "expected at least one token for collected capture",
+                                ));
+                            }
+                            #receiver _stream;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn compile_collect_token_stream_capture(
+        &mut self,
+        trailer_capture: &Capture,
+        receiver: &TokenStream,
+        optional: bool,
+    ) -> TokenStream {
+        let captures = trailer_capture.collect_captures();
+        let (capture_init, struct_def, struct_expr, fields) =
+            generate_output(&captures, None, None);
+        let trailer_tokens = self.compile_capture(trailer_capture);
+        let tree = format_ident!("_tree");
+        let angle_depth = format_ident!("_angle_depth");
+        let scan_tree = format_ident!("_scan_tree");
+        let scan_angle_depth = format_ident!("_scan_angle_depth");
+        let angle_depth_update = self.compile_angle_depth_update(&tree, &angle_depth);
+        let scan_angle_depth_update =
+            self.compile_angle_depth_update(&scan_tree, &scan_angle_depth);
+
+        let assign_outputs = captures.iter().enumerate().map(|(i, capture)| {
+            let ident = &fields[i];
+            let access = if capture.is_inline {
+                LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+            } else {
+                quote! { #ident }
+            };
+            if optional && !capture.is_optional {
+                quote! {
+                    #ident = ::std::option::Option::Some(output.#access);
+                }
+            } else {
+                quote! {
+                    #ident = output.#access;
+                }
+            }
+        });
+        let assign_none = fields.iter().map(|ident| {
+            quote! {
+                #ident = ::std::option::Option::None;
+            }
+        });
+
+        if optional {
+            quote! {
+                {
+                    #struct_def
+                    let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
+                        #capture_init
+                        #trailer_tokens
+                        ::std::result::Result::Ok(#struct_expr)
+                    };
+                    let mut _scan = input.fork();
+                    let mut #scan_angle_depth = 0usize;
+                    let mut _matched = false;
+                    while !_scan.is_empty() {
+                        if #scan_angle_depth == 0 {
+                            let _probe = _scan.fork();
+                            if _parser(&_probe).is_ok() {
+                                _matched = true;
+                                break;
+                            }
+                        }
+                        let _before = _scan.cursor();
+                        let #scan_tree = _scan.parse::<::proc_macro2::TokenTree>()?;
+                        if _scan.cursor() == _before {
+                            return ::std::result::Result::Err(::syn::Error::new(
+                                _scan.span(),
+                                "collected capture did not consume any tokens",
+                            ));
+                        }
+                        #scan_angle_depth_update
+                    }
+                    if !_matched {
+                        #receiver ::std::option::Option::None;
+                        #(#assign_none)*
+                    } else {
+                        let mut _stream = ::proc_macro2::TokenStream::new();
+                        let mut #angle_depth = 0usize;
+                        loop {
+                            if #angle_depth == 0 {
+                                let _fork = input.fork();
+                                if _parser(&_fork).is_ok() {
+                                    let output = _parser(input)?;
+                                    #(#assign_outputs)*
+                                    if _stream.is_empty() {
+                                        #receiver ::std::option::Option::None;
+                                    } else {
+                                        #receiver ::std::option::Option::Some(_stream);
+                                    }
+                                    break;
+                                }
+                            }
+                            let _before = input.cursor();
+                            let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                            if input.cursor() == _before {
+                                return ::std::result::Result::Err(::syn::Error::new(
+                                    input.span(),
+                                    "collected capture did not consume any tokens",
+                                ));
+                            }
+                            #angle_depth_update
+                            _stream.extend(::std::iter::once(#tree));
+                        }
+                    }
+                }
+            }
+        } else {
+            quote! {
+                {
+                    #struct_def
+                    let _parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
+                        #capture_init
+                        #trailer_tokens
+                        ::std::result::Result::Ok(#struct_expr)
+                    };
+                    let mut _stream = ::proc_macro2::TokenStream::new();
+                    let mut #angle_depth = 0usize;
+                    loop {
+                        if #angle_depth == 0 {
+                            let _fork = input.fork();
+                            if _parser(&_fork).is_ok() {
+                                if _stream.is_empty() {
+                                    return ::std::result::Result::Err(::syn::Error::new(
+                                        input.span(),
+                                        "expected at least one token for collected capture",
+                                    ));
+                                }
+                                let output = _parser(input)?;
+                                #(#assign_outputs)*
+                                #receiver _stream;
+                                break;
+                            }
+                        }
+                        let _before = input.cursor();
+                        if input.is_empty() {
+                            return ::std::result::Result::Err(::syn::Error::new(
+                                input.span(),
+                                "expected trailer capture for collected capture",
+                            ));
+                        }
+                        let #tree = input.parse::<::proc_macro2::TokenTree>()?;
+                        if input.cursor() == _before {
+                            return ::std::result::Result::Err(::syn::Error::new(
+                                input.span(),
+                                "collected capture did not consume any tokens",
+                            ));
+                        }
+                        #angle_depth_update
+                        _stream.extend(::std::iter::once(#tree));
+                    }
+                }
+            }
         }
     }
 
@@ -457,6 +802,7 @@ impl Compiler {
                 quote!(#enum_name)
             }
             MatcherKind::SynType(ty) => quote!(#ty),
+            MatcherKind::TokenStreamCollect { .. } => quote!(::proc_macro2::TokenStream),
             MatcherKind::Nested(_) => quote! {},
         }
     }
