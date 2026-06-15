@@ -62,19 +62,25 @@ if let Some(ret_type) = captured.ret {
 
 ## Syntax Reference
 
-| Syntax          | Description                                                   | Result Type          | Example              |
-| :-------------- | :------------------------------------------------------------ | :------------------- | :------------------- |
-| `literal`       | Matches and consumes exact tokens                             | `!`                  | `fn`, `->`, `struct` |
-| `#(x: T)`       | **Named Capture**: Captures type `T` into field `x`           | `T`                  | `#(name: Ident)`     |
-| `#(x?: T)`      | **Named Optional**: Attempts to parse; skips if failed        | `Option<T>`          | `#(ret?: Type)`      |
-| `#(x*: T)`      | **Named Blank Iter**: Parses consecutive tokens               | `Vec<T>`             | `#(tokens*: Ident)`  |
-| `#(x*[]: T)`    | **Named Blank Iter**: Parses consecutive tokens               | `Vec<T>`             | `#(tokens*[]: Ident)` |
-| `#(x*[sep]: T)` | **Named Delimited Iter**: Parses by separator                 | `Punctuated<T, sep>` | `#(args*[,]: FnArg)` |
-| `#(T)`          | **Anonymous Match**: Validates `T` exists but doesn't capture | `!`                  | `#(Ident)`           |
-| `#(?: T)`       | **Anonymous Optional**: Validation only                       | `!`                  | `#(?: Ident)`        |
-| `#(*: #(x: T))` | **Anonymous Nested Blank Iter**: Collects inner fields        | `Vec<T>`             | `#(*: #(name: Ident))` |
-| `#(*[sep]: #(x: T))` | **Anonymous Nested Delimited Iter**: Collects inner fields | `Punctuated<T, sep>` | `#(*[,]: #(name: Ident))` |
-| `#{literal}`    | **Literal Capture**: Captures content as literal tokens       | `!`                  | `#{ #(not: a #(capture)) }`|
+| Syntax               | Description                                                                             | Example                                                               |
+| :------------------- | :-------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| `literal`            | Matches exact tokens                                                                    | `fn`, `->`, `struct`                                                  |
+| `#(x: T)`            | **Named Capture**: Captures type `T` into field `x`                                     | `#(name: Ident)`                                                      |
+| `#(x?: T)`           | **Optional Capture**: `Option<T>`                                                       | `#(ret?: Type)`                                                       |
+| `#(x*: T)`           | **Blank Iterative Capture**: `Vec<T>`                                                   | `#(tokens*: Ident)`                                                   |
+| `#(x*[]: T)`         | **Blank Iterative Capture**: `Vec<T>`                                                   | `#(tokens*[]: Ident)`                                                 |
+| `#(x*[sep]: T)`      | **Delimited Iterative Capture**: `Punctuated<T, sep>`                                   | `#(args*[,]: FnArg)`                                                  |
+| `#(x..)`             | **Collected Rest Capture**: Collects tokens until the current scope ends                | `#(rest..)`                                                           |
+| `#(x?..)`            | **Optional Collected Rest Capture**: `Option<TokenStream>`                              | `#(prefix?..)`                                                        |
+| `#(x..[stop])`       | **Collected Until Stopper**: Collects tokens until `stop` and consumes it               | `#(prefix..[:])`                                                      |
+| `#(x?..[stop])`      | **Optional Collected Until Stopper**: `Option<TokenStream>`                             | `#(prefix?..[:])`                                                     |
+| `#(x.. \| #(...))`   | **Collected Until Trailer Capture**: Collects tokens until a trailing capture matches   | `#(token.. \| #(mode: OptionMode { Spaced: #{:}, Assigned: #{=} }))`  |
+| `#(x?.. \| #(...))`  | **Optional Collected Until Trailer Capture**: `Option<TokenStream>`                     | `#(token?.. \| #(mode: OptionMode { Spaced: #{:}, Assigned: #{=} }))` |
+| `#(T)`               | **Anonymous Match**: Validates `T` exists but doesn't capture                           | `#(Ident)`                                                            |
+| `#(?: T)`            | **Anonymous Optional Match**: Validation only                                           | `#(?: Ident)`                                                         |
+| `#(*: #(x: T))`      | **Anonymous Nested Blank Iteration**: captures inner fields as `Vec<T>`                 | `#(*: #(name: Ident))`                                                |
+| `#(*[sep]: #(x: T))` | **Delimited Anonymous Nested Iteration**: captures inner fields as `Punctuated<T, sep>` | `#(*[,]: #(name: Ident))`                                             |
+| `#{literal}`         | **Literal Capture**: Captures content as literal tokens                                 | `#{ #(not: a #(capture)) }`                                           |
 
 ## Polymorphic Capture (Enum Parsing)
 
