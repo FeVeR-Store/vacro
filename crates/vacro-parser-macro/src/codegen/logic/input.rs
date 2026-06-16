@@ -6,7 +6,7 @@ use crate::{
     ast::input::{BindInput, DefineInput},
     codegen::{
         logic::Compiler,
-        output::{generate_example, generate_output},
+        output::{generate_example, generate_output, generate_spanned_impl},
     },
     scope_context,
 };
@@ -38,6 +38,8 @@ impl Compiler {
         } = &self;
 
         let (capture_init, struct_def, struct_expr, _) = generate_output(&captures, None, None);
+        let is_inline = captures.first().map(|f| f.is_inline).unwrap_or(false);
+        let span_impl = generate_spanned_impl(&syn::parse_quote!(Output), is_inline);
         let (example_doc, extra) = generate_example(&example_items, false, false, false);
         let extra = extra.iter().map(|e| {
             quote! {
@@ -52,6 +54,7 @@ impl Compiler {
                 #[doc = #example_doc]
                 #(#extra)*
                 #struct_def
+                #span_impl
                 let parser = |input: ::syn::parse::ParseStream| -> ::syn::Result<Output> {
                     #capture_init
                     #patterns_tokens
@@ -93,6 +96,7 @@ impl Compiler {
 
         let (capture_init, struct_def, struct_expr, _) =
             generate_output(&captures, Some(name.clone()), Some(visibility.clone()));
+        let span_impl = generate_spanned_impl(name, false);
 
         let (example_doc, extra) = generate_example(&example_items, false, false, false);
         let extra = extra.iter().map(|e| {
@@ -107,6 +111,7 @@ impl Compiler {
             #[doc = #example_doc]
             #(#extra)*
             #struct_def
+            #span_impl
             impl ::syn::parse::Parse for #name {
                 fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
                     #(#scoped_definition)*

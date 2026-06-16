@@ -3,7 +3,7 @@ use quote::{format_ident, quote};
 use syn::{Ident, Visibility};
 
 use crate::ast::capture::{ExampleItem, FieldDef};
-
+use crate::utils::resolve_crate_root;
 type CaptureInit = TokenStream;
 type StructDef = TokenStream;
 type StructExpr = TokenStream;
@@ -19,6 +19,12 @@ pub fn generate_output(
     let mut capture_init = TokenStream::new();
 
     let is_inline = capture_list.first().map(|f| f.is_inline).unwrap_or(false);
+
+    if !is_inline {
+        capture_init.extend(quote! {
+            let __vacro_span: ::proc_macro2::Span = input.span();
+        });
+    }
 
     capture_init.extend(capture_list.iter().map(
         |FieldDef {
@@ -75,10 +81,43 @@ pub fn generate_output(
     } else {
         (
             capture_init,
-            quote! { #visibility struct #ident { #struct_fields } },
-            quote! { #ident { #struct_expr_fields } },
+            quote! {
+                #visibility struct #ident {
+                    #struct_fields
+                    __vacro_span: ::proc_macro2::Span,
+                }
+            },
+            quote! { #ident { #struct_expr_fields __vacro_span } },
             capture_ident_list,
         )
+    }
+}
+
+pub fn generate_spanned_impl(ident: &Ident, is_inline: bool) -> TokenStream {
+    if is_inline {
+        return TokenStream::new();
+    }
+
+    let pkg = resolve_crate_root();
+    quote! {
+        impl #ident {
+            pub fn span(&self) -> ::proc_macro2::Span {
+                self.__vacro_span
+            }
+
+            pub fn error(
+                &self,
+                message: impl ::std::fmt::Display,
+            ) -> ::syn::Error {
+                ::syn::Error::new(self.span(), message)
+            }
+        }
+
+        impl #pkg::VacroSpanned for #ident {
+            fn span(&self) -> ::proc_macro2::Span {
+                self.__vacro_span
+            }
+        }
     }
 }
 
@@ -232,6 +271,7 @@ mod tests {
         assert!(output.contains("struct MyStruct"));
         assert!(output.contains("name : Ident ,")); // 关键点：要有逗号
         assert!(output.contains("ret : Type ,")); // 关键点：要有逗号
+        assert!(output.contains("__vacro_span : :: proc_macro2 :: Span"));
 
         let (_, struct_def, _, _) = generate_output(
             &fields,
@@ -291,6 +331,19 @@ mod tests {
     }
 
     #[test]
+    fn test_generate_spanned_impl() {
+        let impl_tokens = generate_spanned_impl(&parse_quote!(MyStruct), false).to_string();
+
+        assert!(impl_tokens.contains("impl MyStruct"));
+        assert!(impl_tokens.contains("pub fn span"));
+        assert!(impl_tokens.contains("pub fn error"));
+        assert!(impl_tokens.contains("VacroSpanned for MyStruct"));
+
+        let inline_impl_tokens = generate_spanned_impl(&parse_quote!(MyTuple), true).to_string();
+        assert!(inline_impl_tokens.is_empty());
+    }
+
+    #[test]
     fn test_generate_empty_capture() {
         let fields = vec![];
         let (_, struct_def, struct_expr, _) =
@@ -299,13 +352,13 @@ mod tests {
         let def_str = struct_def.to_string();
         let expr_str = struct_expr.to_string();
 
-        // 期望: struct MyEmpty {} 或 struct MyEmpty { }
+        // Empty capture still carries the private span field.
         assert!(def_str.contains("struct MyEmpty"));
-        // 确保没有多余的逗号
-        assert!(!def_str.contains(", }"));
+        assert!(def_str.contains("__vacro_span"));
 
-        // 期望: MyEmpty {}
+        // 期望: MyEmpty { __vacro_span }
         assert!(expr_str.contains("MyEmpty"));
+        assert!(expr_str.contains("__vacro_span"));
     }
 
     #[test]

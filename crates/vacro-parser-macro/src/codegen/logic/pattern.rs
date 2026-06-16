@@ -1,5 +1,6 @@
-use proc_macro2::{Delimiter, TokenStream};
-use quote::quote;
+use proc_macro2::{Delimiter, Span, TokenStream};
+use quote::{quote, ToTokens};
+use syn::LitInt;
 
 use crate::{
     ast::{
@@ -76,8 +77,19 @@ impl Compiler {
                     return tokens;
                 }
                 let captures = pattern.collect_captures();
-                let (capture_init, struct_def, struct_expr, ..) =
+                let (capture_init, struct_def, struct_expr, fields) =
                     generate_output(&captures, None, None);
+                let assign_outputs = captures.iter().enumerate().map(|(i, capture)| {
+                    let ident = &fields[i];
+                    let access = if capture.is_inline {
+                        LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+                    } else {
+                        quote! { #ident }
+                    };
+                    quote! {
+                        #ident = output.#access;
+                    }
+                });
 
                 // 追加到 body_stream
                 body_stream.extend(quote! {
@@ -90,14 +102,26 @@ impl Compiler {
                             #pattern_token
                             ::std::result::Result::Ok(#struct_expr)
                         };
-                        #struct_expr = parser(&_input)?;
+                        let output = parser(&_input)?;
+                        #(#assign_outputs)*
                     }
                 });
             }
             PatternKind::Capture(capture) => {
                 let captures = capture.collect_captures();
-                let (capture_init, struct_def, struct_expr, ..) =
+                let (capture_init, struct_def, struct_expr, fields) =
                     generate_output(&captures, None, None);
+                let assign_outputs = captures.iter().enumerate().map(|(i, capture)| {
+                    let ident = &fields[i];
+                    let access = if capture.is_inline {
+                        LitInt::new(&i.to_string(), Span::call_site()).into_token_stream()
+                    } else {
+                        quote! { #ident }
+                    };
+                    quote! {
+                        #ident = output.#access;
+                    }
+                });
                 let cap_tokens = self.compile_capture(capture);
                 match &capture.edge {
                     Some(keyword) if !matches!(capture.quantity, Quantity::Optional) => {
@@ -134,7 +158,8 @@ impl Compiler {
                                     ::std::result::Result::Ok(#struct_expr)
                                 };
                                 // 这里解析刚才吃进去的流
-                                #struct_expr = ::syn::parse::Parser::parse2(parser, _input)?;
+                                let output = ::syn::parse::Parser::parse2(parser, _input)?;
+                                #(#assign_outputs)*
                             }
                         });
                     }

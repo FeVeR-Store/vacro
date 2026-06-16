@@ -1,0 +1,5 @@
+error[E0063]: missing field `__vacro_span` in initializer of `ManualConstructed`
+  --> tests/ui/manual_construct_spanned.rs:14:19
+   |
+14 |     let _manual = ManualConstructed { name };
+   |                   ^^^^^^^^^^^^^^^^^ missing `__vacro_span`

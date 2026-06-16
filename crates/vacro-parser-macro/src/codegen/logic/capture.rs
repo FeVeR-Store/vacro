@@ -1,6 +1,9 @@
 use proc_macro2::{Delimiter, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
-use syn::{parse_quote, punctuated::Punctuated, token::Comma, Expr, Ident, LitInt, Token, Type};
+use syn::{
+    parse_quote, punctuated::Punctuated, token::Comma, token::Pub, Expr, Ident, LitInt, Token,
+    Type, Visibility,
+};
 
 use crate::{
     ast::{
@@ -9,7 +12,10 @@ use crate::{
         },
         node::{Pattern, PatternKind},
     },
-    codegen::{logic::Compiler, output::generate_output},
+    codegen::{
+        logic::Compiler,
+        output::{generate_output, generate_spanned_impl},
+    },
     transform::lookahead::inject_lookahead,
     utils::resolve_crate_root,
 };
@@ -561,9 +567,15 @@ impl Compiler {
         };
 
         let captures = patterns_group.collect_captures();
+        let is_inline = captures.first().map(|f| f.is_inline).unwrap_or(false);
 
-        let (capture_init, struct_def, struct_expr, _) =
-            generate_output(&captures, Some(item_name.clone()), None);
+        let (capture_init, struct_def, struct_expr, _) = generate_output(
+            &captures,
+            Some(item_name.clone()),
+            Some(Visibility::Public(Pub {
+                span: Span::call_site(),
+            })),
+        );
 
         let pattern_tokens = self.compile_pattern(&patterns_group);
 
@@ -573,8 +585,10 @@ impl Compiler {
         self.define_invisible_item(parse_quote! {
             #(#derive_attrs)*
             #[allow(non_camel_case_types)]
-            pub #struct_def
+            #struct_def
         });
+        let span_impl = generate_spanned_impl(item_name, is_inline);
+        self.define_invisible_items(span_impl);
 
         // 2. 定义 Trait（避免与 syn::parse::Parse 冲突）
         let parse_trait = format_ident!("_{}_Parse", item_name);

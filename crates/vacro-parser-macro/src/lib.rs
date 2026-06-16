@@ -181,7 +181,7 @@ pub fn bind(input: TokenStream) -> TokenStream {
 ///
 /// fn parser(input: ParseStream) -> Result<()> {
 ///     // MyConst 自动实现了 Parse trait
-///     let MyConst { name, ty, value } = input.parse()?;
+///     let MyConst { name, ty, value, .. } = input.parse()?;
 ///     println!("Const {} has type {}, value: {}", name, quote!(#ty), quote!(#value));
 ///     Ok(())
 /// }
@@ -230,7 +230,7 @@ pub fn bind(input: TokenStream) -> TokenStream {
 ///
 /// fn parser(input: ParseStream) -> Result<()> {
 ///     // MyConst automatically implements the Parse trait
-///     let MyConst { name, ty, value } = input.parse()?;
+///     let MyConst { name, ty, value, .. } = input.parse()?;
 ///     println!("Const {} has type {}, value: {}", name, quote!(#ty), quote!(#value));
 ///     Ok(())
 /// }

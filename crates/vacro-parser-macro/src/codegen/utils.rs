@@ -1,9 +1,25 @@
+use proc_macro2::TokenStream;
 use quote::{format_ident, ToTokens};
 use syn::{parse_quote, Ident, Item, Pat};
 
 use crate::codegen::logic::Compiler;
 
 impl Compiler {
+    pub fn define_invisible_items(&mut self, items_tokens: TokenStream) {
+        let parser = |input: syn::parse::ParseStream| {
+            let mut items = Vec::new();
+            while !input.is_empty() {
+                items.push(input.parse::<Item>()?);
+            }
+            Ok(items)
+        };
+        let items = syn::parse::Parser::parse2(parser, items_tokens)
+            .expect("failed to parse generated invisible items");
+        for item in items {
+            self.define_invisible_item(item);
+        }
+    }
+
     pub fn define_invisible_item(&mut self, item: Item) {
         let mod_ident = self.get_private_scope_ident();
         if let Some(Item::Mod(m)) = self.shared_definition.get_mut(0) {

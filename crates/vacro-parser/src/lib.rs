@@ -18,3 +18,5 @@ pub mod __private;
 pub use vacro_parser_macro::bind;
 
 pub use vacro_parser_macro::define;
+
+pub use __private::VacroSpanned;

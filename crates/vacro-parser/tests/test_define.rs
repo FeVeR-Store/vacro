@@ -5,7 +5,7 @@ use syn::{
     parse2, parse_quote, Block, Expr, FieldValue, FnArg, Generics, Ident, LitBool, LitInt, Member,
     PatType, Receiver, ReturnType, Stmt, Token, Type,
 };
-use vacro_parser::define;
+use vacro_parser::{define, VacroSpanned};
 
 // 1. 基础测试：最简单的结构体定义
 // 定义一个名为 Simple 的解析器，格式为 "kw" + Ident
@@ -19,6 +19,17 @@ fn test_simple_define() {
     let input = quote!( kw hello );
     let res: Simple = parse2(input).unwrap();
     assert_eq!(res.name.to_string(), "hello");
+}
+
+#[test]
+fn test_define_output_span_and_error() {
+    let input = quote!( kw hello );
+    let res: Simple = parse2(input).unwrap();
+    let _span = res.span();
+    let err = res.error("invalid simple");
+
+    assert_eq!(err.to_string(), "invalid simple");
+    let _trait_span = VacroSpanned::span(&res);
 }
 
 // 2. 复杂测试：包含可选、重复和嵌套
@@ -679,6 +690,12 @@ fn test_named_one_nested() {
     let input = quote!({ my_val });
     let res: SingleWrapper = parse2(input).unwrap();
     assert_eq!(res.inner.val.to_string(), "my_val");
+    let _span = res.inner.span();
+    assert_eq!(
+        res.inner.error("invalid inner").to_string(),
+        "invalid inner"
+    );
+    let _trait_span = VacroSpanned::span(&res.inner);
 }
 
 define!(Mixed: {
@@ -759,6 +776,7 @@ fn test_device_config() {
         inputs,
         output,
         block,
+        ..
     }) = device_config.config_items.get(2).unwrap()
     {
         assert_eq!(name.to_string(), "get_name");
@@ -785,8 +803,9 @@ fn test_device_config() {
         panic!("3rd field should be Method")
     }
 
-    if let Config::Property(Property { name, ty, default }) =
-        device_config.config_items.get(3).unwrap()
+    if let Config::Property(Property {
+        name, ty, default, ..
+    }) = device_config.config_items.get(3).unwrap()
     {
         assert_eq!(name.to_string(), "name");
         assert_eq!(quote! {#ty}.to_string(), "String");

@@ -16,12 +16,12 @@ rustdoc-args = ["--html-in-header", "doc-i18n.html"]
 
 [dependencies]
 proc-macro2 = { workspace = true }
+syn = { workspace = true, features = ["extra-traits", "full"] }
 vacro-doc-i18n = { path = "../vacro-doc-i18n", version = "0.2.0" }
 vacro-parser-macro = { path = "../vacro-parser-macro", version = "0.1.16" }
 
 [dev-dependencies]
 quote = { workspace = true }
-syn = { workspace = true, features = ["extra-traits", "full"] }
 trybuild = { workspace = true }
 vacro-report = { path = "../vacro-report", version = "0.1" }
 

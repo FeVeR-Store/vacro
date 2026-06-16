@@ -1,7 +1,7 @@
 use quote::quote;
 use std::str::FromStr;
 use syn::{Ident, LitBool, LitInt, Type};
-use vacro_parser::bind;
+use vacro_parser::{bind, VacroSpanned};
 
 use proc_macro2::TokenStream;
 
@@ -21,6 +21,22 @@ fn test_basic_capture() {
     assert!(res.is_ok());
     let output = res.unwrap();
     assert_eq!(output.name.to_string(), "my_var");
+}
+
+#[test]
+fn test_bind_output_span_and_error() {
+    let input = quote!(my_var);
+
+    bind!(
+        let res = (input -> #(name: Ident));
+    );
+
+    let output = res.unwrap();
+    let _span = output.span();
+    let err = output.error("invalid binding");
+
+    assert_eq!(err.to_string(), "invalid binding");
+    let _trait_span = VacroSpanned::span(&output);
 }
 
 // 测试行内元组捕获
